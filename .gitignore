@@ -2,7 +2,7 @@
 build
 ckpts
 data
-model/pointpillar_raw.onnx
-model/*.plan
+model/*
 workspace
 **/__pycache__
+.vs
