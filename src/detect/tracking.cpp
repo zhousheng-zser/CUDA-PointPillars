@@ -291,12 +291,22 @@ float Tracker::get_speed() const {
     }
     
     // Calculate average speed from the first use_count values
+    // Filter out speeds greater than 200km/h
+    const float max_speed = 200.0f / 3.6f;
     float sum = 0.0f;
+    size_t valid_count = 0;
     for (size_t i = 0; i < use_count; ++i) {
-        sum += speed_[i];
+        if (speed_[i] <= max_speed) {
+            sum += speed_[i];
+            valid_count++;
+        }
     }
     
-    return sum / static_cast<float>(use_count);
+    if (valid_count == 0) {
+        return 0.0f;
+    }
+    
+    return sum / static_cast<float>(valid_count);
 }
 
 float Tracker::get_length(DimensionStrategy strategy) const {

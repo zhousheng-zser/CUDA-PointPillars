@@ -350,7 +350,7 @@ void point_cloud_detect() {
 
 int main(int argc, char** argv) {
     // Set config file path before initializing config
-    RangeConfigSingleton::setConfigFilePath("/home/zser/CUDA-PointPillars/config-inno.json");
+    RangeConfigSingleton::setConfigFilePath("../config/config-inno.json");
     
     // Construct MultiObjectTracker after config is initialized
     // Config is automatically initialized when getInstance() is first called
