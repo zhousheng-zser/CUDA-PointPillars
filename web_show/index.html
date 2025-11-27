@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>点云3D框体编辑器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #fff;
+            overflow: hidden;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        .sidebar {
+            width: 380px;
+            background: #16213e;
+            padding: 20px;
+            overflow-y: auto;
+            border-right: 2px solid #0f3460;
+        }
+        
+        .main-content {
+            flex: 1;
+            position: relative;
+        }
+        
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #e94560;
+            text-align: center;
+        }
+        
+        .section {
+            margin-bottom: 25px;
+            padding: 15px;
+            background: #1a1a2e;
+            border-radius: 8px;
+            border: 1px solid #0f3460;
+        }
+        
+        .section-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            color: #e94560;
+        }
+        
+        .file-upload {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            width: 100%;
+        }
+        
+        .file-upload input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+        
+        .file-upload-label {
+            display: block;
+            padding: 12px;
+            background: #0f3460;
+            color: white;
+            text-align: center;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .file-upload-label:hover {
+            background: #e94560;
+        }
+        
+        .btn {
+            padding: 10px 15px;
+            margin: 5px 5px 5px 0;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #0f3460;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #e94560;
+        }
+        
+        .btn-danger {
+            background: #c82333;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #dc3545;
+        }
+        
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #34ce57;
+        }
+        
+        .boxes-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .lines-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .box-item {
+            background: #0f3460;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            border: 1px solid #16213e;
+        }
+        
+        .box-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .box-title {
+            font-weight: bold;
+            color: #e94560;
+        }
+        
+        .param-group {
+            display: grid;
+            grid-template-columns: auto 1fr auto auto auto;
+            gap: 5px;
+            margin-bottom: 8px;
+            align-items: center;
+        }
+        
+        .param-label {
+            font-size: 13px;
+            color: #a0a0a0;
+        }
+        
+        .param-input {
+            background: #1a1a2e;
+            border: 1px solid #0f3460;
+            color: white;
+            padding: 5px 8px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        
+        .param-input:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+        
+        .btn-sm {
+            padding: 4px 8px;
+            font-size: 11px;
+            min-width: 28px;
+        }
+        
+        .info {
+            font-size: 12px;
+            color: #888;
+            margin-top: 10px;
+            padding: 10px;
+            background: #0f3460;
+            border-radius: 5px;
+        }
+        
+        .canvas-container {
+            width: 100%;
+            height: 100%;
+        }
+        
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+        }
+        
+        .modal-content {
+            background-color: #16213e;
+            margin: 5% auto;
+            padding: 30px;
+            border: 2px solid #0f3460;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 600px;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .modal-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #e94560;
+        }
+        
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .close:hover {
+            color: #e94560;
+        }
+        
+        .import-textarea {
+            width: 100%;
+            min-height: 300px;
+            background: #1a1a2e;
+            border: 1px solid #0f3460;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            resize: vertical;
+        }
+        
+        .import-textarea:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+        
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h1>点云3D框体编辑器</h1>
+            
+            <div class="section">
+                <div class="section-title">文件操作</div>
+                <div class="file-upload">
+                    <input type="file" id="pcdFileInput" accept=".pcd">
+                    <label for="pcdFileInput" class="file-upload-label">
+                        上传PCD点云文件
+                    </label>
+                </div>
+                <div class="info">
+                    支持标准PCD格式的点云文件
+                </div>
+                <div class="info" id="pointCloudInfo" style="display: none;">
+                    点云数量: <span id="pointCount">0</span>
+                </div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">点云变换</div>
+                <div id="cloudTransformControls"></div>
+                <button class="btn btn-primary" style="margin-top: 10px;" onclick="calculateGroundPlane()">计算地面平面</button>
+                <div class="info" id="groundPlaneResult" style="margin-top: 10px;">尚未计算地面平面</div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">框体管理</div>
+                <button class="btn btn-primary" onclick="addNewBox()">添加新框体</button>
+                <button class="btn btn-primary" onclick="showImportDialog()">批量导入</button>
+                <button class="btn btn-success" onclick="exportBoxes()">导出TXT</button>
+                <button class="btn btn-success" onclick="saveAsPCD()">保存PCD</button>
+                <div class="boxes-list" id="boxesList"></div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">线段管理</div>
+                <button class="btn btn-primary" onclick="addNewLine()">添加新线段</button>
+                <div class="lines-list" id="linesList"></div>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="canvas-container">
+                <canvas id="renderCanvas"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- 批量导入对话框 -->
+    <div id="importModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-title">批量导入框体数据</span>
+                <span class="close" onclick="closeImportDialog()">&times;</span>
+            </div>
+            <div style="margin-bottom: 15px; font-size: 13px; color: #888;">
+                格式: 每行一个框体，参数用空格分隔<br>
+                参数顺序: x y z w l h rt<br>
+                示例: 34.56 0 -1 69.12 79.36 4 0
+            </div>
+            <textarea id="importData" class="import-textarea" placeholder="粘贴框体数据，每行一个框体&#10;例如：&#10;34.56 0 -1 69.12 79.36 4 0&#10;8.69702 -1.82145 -0.671802 1.20388 0.627663 1.8344 4.79124"></textarea>
+            <div class="modal-actions">
+                <button class="btn btn-primary" onclick="closeImportDialog()">取消</button>
+                <button class="btn btn-success" onclick="importBoxes()">导入</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="OrbitControls.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
+
