@@ -276,9 +276,9 @@ bool compute_min_box_with_rot(const std::vector<nvtype::Float3> &points_in_box,
 
 // 校准3D框：获取最小外接贴地长方体
 void calib_3d_box(const std::vector<float> &points_filtered, 
-                  pointpillar::lidar::BoundingBox &box)
+    detect::ProcessingBox &box)
 {
-    // 从 BoundingBox 构造 RangeConfig，复用 point_in_3d_box 函数
+    // 从 detect::ProcessingBox 构造 RangeConfig，复用 point_in_3d_box 函数
     RangeConfig cfg;
     cfg.center_x = box.x;
     cfg.center_y = box.y;
@@ -288,7 +288,7 @@ void calib_3d_box(const std::vector<float> &points_filtered,
      // 边长*1.2  扩大一点点  防止检测框小  
     cfg.range_x = box.w * (0.5f+0.1f);  // w 对应 x 方向（point_in_3d_box 中会乘以2）
     cfg.range_y = box.l * (0.5f+0.1f);  // l 对应 y 方向（point_in_3d_box 中会乘以2）
-    cfg.range_z = box.h ;  // h 对应 z 方向（高度，不是半高）
+    cfg.range_z = box.h * (1.0f+0.1f);  // h 对应 z 方向（高度，不是半高）
     cfg.ry = box.rt;  // 旋转角度（都是绕Z轴旋转，在雷达坐标系XY平面内）
     // 筛选点云中属于ROI框的点
     std::vector<nvtype::Float3> points_in_box;
@@ -301,6 +301,7 @@ void calib_3d_box(const std::vector<float> &points_filtered,
         
         if (point_in_3d_box(px, py, pz, cfg)) {
             points_in_box.push_back(nvtype::Float3(px, py, pz));
+            box.points.push_back(std::array<float, 4>{px, py, pz, points_filtered[i * 4 + 3]});
         }
     }
     
@@ -324,7 +325,7 @@ void calib_3d_box(const std::vector<float> &points_filtered,
 
 // 后处理：过滤和校准检测框
 void post_processing(const std::vector<pointpillar::lidar::BoundingBox> &bboxes,
-                     std::vector<pointpillar::lidar::BoundingBox> &bboxes_result,
+                     std::vector<detect::ProcessingBox> &bboxes_result,
                      const std::vector<float> &points_filtered)
 {
     for (const auto &box : bboxes)
@@ -332,7 +333,7 @@ void post_processing(const std::vector<pointpillar::lidar::BoundingBox> &bboxes,
         if(box.score > get_config().detection_score_threshold && box.id ==0  )
         {
             //获取最小外接贴地长方体
-            pointpillar::lidar::BoundingBox calibrated_box = box;
+            detect::ProcessingBox calibrated_box = detect::ProcessingBox(box);
             calibrated_box.rt = std::fmod(calibrated_box.rt+M_PI, M_PI);
 
             // 限制角度在[π/2-π/18 , π/2+π/18]范围内，即以π/2为中心，偏差±10度
@@ -343,7 +344,7 @@ void post_processing(const std::vector<pointpillar::lidar::BoundingBox> &bboxes,
             calib_3d_box(points_filtered, calibrated_box);
             if(calibrated_box.h / calibrated_box.l>2 || calibrated_box.h / calibrated_box.w>2 ||calibrated_box.score ==0 )
                 continue;
-            else if(calibrated_box.h <1 || calibrated_box.w<1 || calibrated_box.l<1)
+            else if(calibrated_box.h <0.6 || calibrated_box.w<0.6 || calibrated_box.l<0.6)
                 continue;
             bboxes_result.push_back(calibrated_box);
         }

@@ -179,6 +179,7 @@ http_server::DetectionResult handle_detection_request(const std::string& unique_
         best = mot->result_map_[unique_id].result;
         //}
     }
+    std::vector<std::array<float, 4>> points_max_car = std::move(best.points_max_car);
     result.length = best.length;
     result.width = best.width;
     result.height = best.height;
@@ -187,13 +188,13 @@ http_server::DetectionResult handle_detection_request(const std::string& unique_
     result.centre_height = best.centre_h;
     result.speed = best.speed;
     result.score = best.score;
-    http_server::async_forward_to_other_service(unique_id, best, rendered_points, road_id);
+    http_server::async_forward_to_other_service(unique_id, best, rendered_points, points_max_car, road_id, "Inno");
     return result;
 }
 
 int cnt_zser = 0 ;
 // 检测 前处理->推理->后处理
-void detect_task_lidar(std::vector<float> &points, std::vector<pointpillar::lidar::BoundingBox> &bboxes_result) 
+void detect_task_lidar(std::vector<float> &points, std::vector<detect::ProcessingBox> &bboxes_result) 
 {
     bboxes_result.clear();
     if (points.empty()) 
@@ -239,7 +240,7 @@ void detect_task_lidar(std::vector<float> &points, std::vector<pointpillar::lida
     //     const float w  = get_config().range_x * 2.0f;
     //     const float l  = get_config().range_y * 2.0f;
     //     const float h  = get_config().range_z;
-    //     pointpillar::lidar::BoundingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
+    //     detect::ProcessingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
     //     bboxes.push_back(range_box);
     // }
     // std::vector<std::array<float, 4>> rendered_points;
@@ -270,13 +271,14 @@ void point_cloud_detect() {
             }
             
              //先一次跑全部车道 之后再看是不是每个车道开个线程去跑
-            std::vector<pointpillar::lidar::BoundingBox> bboxes;
+            std::vector<detect::ProcessingBox> bboxes;
             auto result_pool = pool->enqueue(detect_task_lidar, std::ref(points), std::ref(bboxes));
             result_pool.get();
             
             // 计算车道id
             std::vector<tracking::BBox3D> detections_frame;
-            for (const auto& box : bboxes) {
+            std::vector<std::vector<std::array<float, 4>>> car_points_frame;
+            for (auto& box : bboxes) {
                 const float center_x = get_config().center_x;
                 const float range_x  = get_config().range_x;
                 const float max_x    = center_x + range_x;
@@ -305,10 +307,11 @@ void point_cloud_detect() {
                 //车前下点作为车中心
                 detections_frame.emplace_back(
                      box.y-0.5*box.w, box.x, box.z, box.w, box.l, box.h, box.rt, static_cast<float>(road_id), box.score);
+                car_points_frame.push_back(std::move(box.points));
             }
 
             // Run tracking on both frames
-            mot->update(detections_frame, time/1000, points);
+            mot->update(detections_frame,car_points_frame, time/1000, points);
             // {// roi框
             //     const float cx = get_config().center_x;
             //     const float cy = get_config().center_y;
@@ -316,7 +319,7 @@ void point_cloud_detect() {
             //     const float w  = get_config().range_x * 2.0f;
             //     const float l  = get_config().range_y * 2.0f;
             //     const float h  = get_config().range_z;
-            //     pointpillar::lidar::BoundingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
+            //     detect::ProcessingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
             //     bboxes.push_back(range_box);
             // }
             
@@ -327,7 +330,7 @@ void point_cloud_detect() {
             //     const float w  = 34.56 * 2.0f;
             //     const float l  = 39.680 * 2.0f;
             //     const float h  = 4;
-            //     pointpillar::lidar::BoundingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
+            //     detect::ProcessingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
             //     bboxes.push_back(range_box);
             // }
 

@@ -10,7 +10,7 @@
 #include <string>
 #include <fstream>
 #include <cmath>
-#include "pointpillar/lidar-postprocess.hpp"
+#include "process.hpp"
 #include "common/dtype.hpp"
 #include "config.hpp"
 
@@ -21,7 +21,7 @@ namespace detect {
  * @param box The bounding box
  * @param corners Output array of 8 corner points
  */
-static inline void boxCorners(const pointpillar::lidar::BoundingBox &box, 
+static inline void boxCorners(const detect::ProcessingBox &box, 
                                std::array<nvtype::Float3, 8> &corners) {
     const float cx = box.x, cy = box.y, cz = box.z;
     const float w = box.w, l = box.l, h = box.h;
@@ -168,7 +168,7 @@ static inline void drawParallelLinesOnBottomFace(
  * @param file_name Output file path
  * @param edge_step Step size for edge interpolation (default: 0.05)
  */
-inline bool SaveBoxesAsPCD(const std::vector<pointpillar::lidar::BoundingBox> &boxes,
+inline bool SaveBoxesAsPCD(const std::vector<detect::ProcessingBox> &boxes,
                     const float *points_xyzi,
                     int num_points,
                     const std::string &file_name,
@@ -245,7 +245,7 @@ inline bool SaveBoxesAsPCD(const std::vector<pointpillar::lidar::BoundingBox> &b
  * @param line_end_y Line segment end point y coordinate
  * @param line_end_z Line segment end point z coordinate
  */
-inline bool SaveBoxesAsPCDWithLine(const std::vector<pointpillar::lidar::BoundingBox> &boxes,
+inline bool SaveBoxesAsPCDWithLine(const std::vector<detect::ProcessingBox> &boxes,
                                     const float *points_xyzi,
                                     int num_points,
                                     const std::string &file_name,

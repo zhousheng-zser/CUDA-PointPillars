@@ -86,7 +86,7 @@ public:
     Tracker(const BBox3D& bbox3d, int id, uint64_t timestamp);
     
     BBox3D predict(float dt = 0.1f);
-    void update(const BBox3D& bbox3d, uint64_t timestamp);
+    void update(const BBox3D& bbox3d, uint64_t timestamp, std::vector<std::array<float, 4>> &points_max_car );
     BBox3D get_state() const;
     BBox3D get_last_observation() const;
     float get_speed() const;
@@ -97,6 +97,7 @@ public:
     int get_id() const { return id_; }
     uint64_t get_last_timestamp() const { return last_timestamp_; }
     int get_time_since_update() const { return time_since_update_; }
+    std::vector<std::array<float, 4>> points_max_car_;  // 维护最大的点云数据
 
 private:
     KalmanFilter3D kf_;
@@ -122,18 +123,19 @@ public:
                       float end_x = 0.0f, float end_y = 0.0f, float end_z = 0.0f,
                       DimensionStrategy dimension_strategy = DimensionStrategy::TRIMMED_MAX);
     
-    void update(const std::vector<BBox3D>& detections, uint64_t timestamp ,std::vector<float> &points);
+    void update(const std::vector<BBox3D>& detections, std::vector<std::vector<std::array<float, 4>>> &car_points_frame, uint64_t timestamp ,std::vector<float> &points);
     
     struct BestResult {
         float length, width, height;
         float centre_l, centre_w, centre_h;
         float speed;
         float score;
+        std::vector<std::array<float, 4>> points_max_car;
     };
     
     std::vector<float> points_now;
     std::vector<BBox3D> Boxes_now;
-
+    
     // Result entry for unique_id map
     struct ResultEntry {
         BestResult result;
@@ -148,7 +150,7 @@ public:
     bool set_unique_id_for_closest_vehicle(const std::string& unique_id, int road_id,std::vector<std::array<float, 4>> &rendered_points);
     
     // Update result entry for a unique_id
-    void update_result_entry(const std::string& unique_id, const BestResult& result, int status_code, uint64_t timestamp);
+    void update_result_entry(const std::string& unique_id, BestResult& result, int status_code, uint64_t timestamp);
     
     std::map<std::string, ResultEntry> result_map_;
 private:

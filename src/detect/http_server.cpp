@@ -199,7 +199,9 @@ void start_pointcloud_server(const std::string& host, int port,DetectorFunc dete
             };
             res.set_content(error_resp.dump(), "application/json");
         } catch (const std::exception& e) {
-            std::cerr << "Error processing request: " << e.what() << std::endl;
+            std::ostringstream forward_msg;
+            forward_msg <<"Error:" << req.body << " Error processing request: " << e.what()  ;
+            write_log(forward_msg.str());
             json error_resp = {
                 {"ret_type", "get_point_cloud_detect_response"},
                 {"ret_header", {
@@ -230,8 +232,9 @@ void start_pointcloud_server(const std::string& host, int port,DetectorFunc dete
 void async_forward_to_other_service(const std::string& unique_id,
                                    const tracking::MultiObjectTracker::BestResult& best,
                                    std::vector<std::array<float, 4>> &point_cloud,
-                                   int road_id) {
-    std::thread([unique_id, best, point_cloud = std::move(point_cloud), road_id]() mutable {
+                                   std::vector<std::array<float, 4>> &points_max_car,
+                                   int road_id ,const std::string &lidar_tpye) {
+    std::thread([unique_id, best, point_cloud = std::move(point_cloud), points_max_car = std::move(points_max_car), road_id, lidar_tpye]() mutable {
         nlohmann::json payload;
         double factor = 1000;
         payload["vehicle_width"] = std::round(best.width * factor);
@@ -243,11 +246,21 @@ void async_forward_to_other_service(const std::string& unique_id,
         payload["vehicle_score"] = std::round(best.score * factor) / factor;
         payload["vehicle_speed"] = std::round(best.speed * 3.6f * factor) / factor;
         payload["vehicle_serial_number"] = unique_id;
+        payload["vehicle_lidar_type"] = lidar_tpye;
         payload["vehicle_detect_time"] = "";
         write_log(payload.dump());
+        // 全图点云
         payload["vehicle_radar_points"] = nlohmann::json::array();
         for (const auto &p : point_cloud) {
             payload["vehicle_radar_points"].push_back(
+                {std::round(p[0] * factor) / factor, std::round(p[1] * factor) / factor, 
+                std::round(p[2] * factor) / factor, std::round(p[3] * factor) / factor}
+            );
+        }
+        // 最大单车点云
+        payload["vehicle_car_points"] = nlohmann::json::array();
+        for (const auto &p : points_max_car) {
+            payload["vehicle_car_points"].push_back(
                 {std::round(p[0] * factor) / factor, std::round(p[1] * factor) / factor, 
                 std::round(p[2] * factor) / factor, std::round(p[3] * factor) / factor}
             );
