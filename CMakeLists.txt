@@ -116,35 +116,35 @@ file(GLOB_RECURSE DETECT_FILES
     src/detect/*.hpp 
     src/detect/*.cpp
 )
-####################### receiver-hsai program #############################
+# ####################### receiver-hsai program #############################
 
 
-cuda_add_executable(receiver-hsai 
-	src/receiver-hsai.cpp
-    ${DETECT_FILES}
-)
-target_include_directories(receiver-hsai 
-    PRIVATE   
-    ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/HesaiLidar_SDK_2.0/sdk
-    src/include
-)
-target_link_directories(receiver-hsai
-    PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/HesaiLidar_SDK_2.0/build
-)
+# cuda_add_executable(receiver-hsai 
+# 	src/receiver-hsai.cpp
+#     ${DETECT_FILES}
+# )
+# target_include_directories(receiver-hsai 
+#     PRIVATE   
+#     ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/HesaiLidar_SDK_2.0/sdk
+#     src/include
+# )
+# target_link_directories(receiver-hsai
+#     PRIVATE
+#     ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/HesaiLidar_SDK_2.0/build
+# )
 
-target_link_libraries(receiver-hsai
-	pointpillar_core
-	nvdla_runtime
-    hesai_sdk_wrapper
-)
+# target_link_libraries(receiver-hsai
+# 	pointpillar_core
+# 	nvdla_runtime
+#     hesai_sdk_wrapper
+# )
 
-# Set RPATH for runtime library search
-set_target_properties(receiver-hsai PROPERTIES
-	INSTALL_RPATH "/usr/lib/aarch64-linux-gnu/nvidia"
-	BUILD_WITH_INSTALL_RPATH TRUE
-)
-#######################################################################
+# # Set RPATH for runtime library search
+# set_target_properties(receiver-hsai PROPERTIES
+# 	INSTALL_RPATH "/usr/lib/aarch64-linux-gnu/nvidia"
+# 	BUILD_WITH_INSTALL_RPATH TRUE
+# )
+# #######################################################################
 
 
 ####################### receiver-inno program #############################
@@ -191,7 +191,10 @@ if(NOT DEFINED CMAKE_INSTALL_PREFIX OR CMAKE_INSTALL_PREFIX STREQUAL "/usr/local
 endif()
 
 # Install executables
-install(TARGETS receiver-hsai receiver-inno
+# install(TARGETS receiver-hsai receiver-inno
+#     RUNTIME DESTINATION bin
+# )
+install(TARGETS receiver-inno
     RUNTIME DESTINATION bin
 )
 

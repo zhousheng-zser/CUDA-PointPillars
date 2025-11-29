@@ -13,6 +13,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <mutex>
+#include <atomic>
 
 using json = nlohmann::json;
 
@@ -90,14 +91,103 @@ static void write_log(const std::string& message) {
     // std::cout << message << std::endl;
 }
 
+
+// 带队列监控的 TaskQueue 包装类
+class MonitoredTaskQueue : public httplib::TaskQueue {
+public:
+    explicit MonitoredTaskQueue(httplib::ThreadPool* pool) : pool_(pool) {}
+    
+    bool enqueue(std::function<void()> fn) override {
+        // 在包装函数中记录队列长度
+        auto wrapped_fn = [this, fn = std::move(fn)]() {
+            // 执行前减少计数
+            queue_count_.fetch_sub(1);
+            
+            // 执行原始函数
+            fn();
+        };
+        
+        // 增加计数
+        size_t queue_size = queue_count_.fetch_add(1) + 1;
+        
+        // 每10个请求或队列长度变化较大时记录一次
+        size_t last_logged = last_logged_size_.load();
+        if (queue_size % 10 == 0 || (queue_size > 0 && queue_size > last_logged + 20)) {
+            std::ostringstream log_msg;
+            log_msg << "[QUEUE_MONITOR] Queue size: " << queue_size;
+            write_log(log_msg.str());
+            last_logged_size_.store(queue_size);
+        }
+        
+        // 调用底层 ThreadPool 的 enqueue
+        // 注意：这里需要访问 ThreadPool 的 enqueue，但它是 protected
+        // 所以我们需要通过其他方式，或者直接调用 pool_ 的方法
+        // 实际上我们需要重新实现这个逻辑
+        return pool_->enqueue(std::move(wrapped_fn));
+    }
+    
+    void shutdown() override {
+        pool_->shutdown();
+    }
+    
+    size_t get_queue_size() const {
+        return queue_count_.load();
+    }
+    
+private:
+    httplib::ThreadPool* pool_;
+    std::atomic<size_t> queue_count_{0};
+    std::atomic<size_t> last_logged_size_{0};
+};
+
+
 void start_pointcloud_server(const std::string& host, int port,DetectorFunc detector, bool* running) 
 {
     httplib::Server svr;
+    // 全局变量用于存储 MonitoredTaskQueue 指针，以便在请求处理中访问
+    static MonitoredTaskQueue* g_monitored_queue = nullptr;
+    
+    // 自定义线程池配置：增加线程数和队列大小以处理高并发请求
+    // 默认 httplib 使用 max(8, CPU核心数-1) 个线程，但队列可能无限制
+    // 这里显式设置更大的线程池以应对 detector 函数可能较慢的情况
+    // 使用带监控的 TaskQueue 来跟踪队列长度
+    svr.new_task_queue = [&]() {
+        // 创建 ThreadPool 并包装在 MonitoredTaskQueue 中
+        auto pool = new httplib::ThreadPool(32, 0);
+        g_monitored_queue = new MonitoredTaskQueue(pool);
+        return g_monitored_queue;
+    };
+    
     
     // Handle POST requests to /pointcloud/detect
     svr.Post("/pointcloud/detect", [detector](const httplib::Request& req, httplib::Response& res) 
     {
         write_log("Body: " + req.body);
+        
+        // 获取当前队列长度
+        size_t queue_size = 0;
+        if (g_monitored_queue) {
+            queue_size = g_monitored_queue->get_queue_size();
+        }
+        
+        // 生成时间戳
+        std::time_t now = std::time(nullptr);
+        std::tm* timeinfo = std::localtime(&now);
+        std::ostringstream time_stream;
+        time_stream << std::setfill('0') 
+                    << std::setw(4) << (1900 + timeinfo->tm_year) << "-"
+                    << std::setfill('0') << std::setw(2) << (timeinfo->tm_mon + 1) << "-"
+                    << std::setfill('0') << std::setw(2) << timeinfo->tm_mday << " "
+                    << std::setfill('0') << std::setw(2) << timeinfo->tm_hour << ":"
+                    << std::setfill('0') << std::setw(2) << timeinfo->tm_min << ":"
+                    << std::setfill('0') << std::setw(2) << timeinfo->tm_sec;
+        std::string timestamp_str = time_stream.str();
+        
+        std::ostringstream log_msg;
+        log_msg << "[REQUEST_RECEIVED] " << timestamp_str 
+                << " Queue size: " << queue_size
+                << " - Body: " << req.body;
+        write_log(log_msg.str());
         
         try {
             // Parse JSON request
