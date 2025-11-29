@@ -181,7 +181,10 @@ void start_pointcloud_server(const std::string& host, int port,DetectorFunc dete
                         {"centre_width", result.centre_width*1000},// Convert m to mm
                         {"centre_height", result.centre_height*1000},// Convert m to mm
                         {"speed", result.speed * 3.6f},  // Convert m/s to km/h
-                        {"score", result.score}
+                        {"score", result.score},
+                        {"coordinate_system", "ECEF"},
+                        {"sensor_type", "LiDAR"},
+                        {"timestamp", timestamp_str}
                     }}
                 }}
             };
