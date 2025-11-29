@@ -140,22 +140,40 @@ void RangeConfigSingleton::initializeConfig(RangeConfig& config, const std::stri
                     config.ground_plane_d = -4.08259;
                 }
                 
-                // 读取 Line 配置
-                if (j.contains("line")) {
-                    auto& line = j["line"];
-                    if (line.contains("start_x")) config.line_config.start_x = line["start_x"];
-                    if (line.contains("start_y")) config.line_config.start_y = line["start_y"];
-                    if (line.contains("start_z")) config.line_config.start_z = line["start_z"];
-                    if (line.contains("end_x")) config.line_config.end_x = line["end_x"];
-                    if (line.contains("end_y")) config.line_config.end_y = line["end_y"];
-                    if (line.contains("end_z")) config.line_config.end_z = line["end_z"];
+                // 读取 Line1 配置
+                if (j.contains("line1")) {
+                    auto& line1 = j["line1"];
+                    if (line1.contains("start_x")) config.line1_config.start_x = line1["start_x"];
+                    if (line1.contains("start_y")) config.line1_config.start_y = line1["start_y"];
+                    if (line1.contains("start_z")) config.line1_config.start_z = line1["start_z"];
+                    if (line1.contains("end_x")) config.line1_config.end_x = line1["end_x"];
+                    if (line1.contains("end_y")) config.line1_config.end_y = line1["end_y"];
+                    if (line1.contains("end_z")) config.line1_config.end_z = line1["end_z"];
                 } else {
-                    config.line_config.start_x = 40.0f;
-                    config.line_config.start_y = -2.0f;
-                    config.line_config.start_z = -3.0f;
-                    config.line_config.end_x = -1.0f;
-                    config.line_config.end_y = -2.0f;
-                    config.line_config.end_z = -3.0f;
+                    config.line1_config.start_x = 40.0f;
+                    config.line1_config.start_y = -2.0f;
+                    config.line1_config.start_z = -3.0f;
+                    config.line1_config.end_x = -1.0f;
+                    config.line1_config.end_y = -2.0f;
+                    config.line1_config.end_z = -3.0f;
+                }
+                
+                // 读取 Line2 配置
+                if (j.contains("line2")) {
+                    auto& line2 = j["line2"];
+                    if (line2.contains("start_x")) config.line2_config.start_x = line2["start_x"];
+                    if (line2.contains("start_y")) config.line2_config.start_y = line2["start_y"];
+                    if (line2.contains("start_z")) config.line2_config.start_z = line2["start_z"];
+                    if (line2.contains("end_x")) config.line2_config.end_x = line2["end_x"];
+                    if (line2.contains("end_y")) config.line2_config.end_y = line2["end_y"];
+                    if (line2.contains("end_z")) config.line2_config.end_z = line2["end_z"];
+                } else {
+                    config.line2_config.start_x = 45.0f;
+                    config.line2_config.start_y = -14.0f;
+                    config.line2_config.start_z = -3.5f;
+                    config.line2_config.end_x = 0.0f;
+                    config.line2_config.end_y = -14.0f;
+                    config.line2_config.end_z = -3.5f;
                 }
                 
                 std::cout << "Configuration loaded from: " << json_file_path << std::endl;
@@ -185,12 +203,18 @@ void RangeConfigSingleton::initializeConfig(RangeConfig& config, const std::stri
         config.ground_plane_b = 0.00755401;
         config.ground_plane_c = -0.999967;
         config.ground_plane_d = -4.08259;
-        config.line_config.start_x = 40.0f;
-        config.line_config.start_y = -2.0f;
-        config.line_config.start_z = -3.0f;
-        config.line_config.end_x = -1.0f;
-        config.line_config.end_y = -2.0f;
-        config.line_config.end_z = -3.0f;
+        config.line1_config.start_x = 40.0f;
+        config.line1_config.start_y = -2.0f;
+        config.line1_config.start_z = -3.0f;
+        config.line1_config.end_x = -1.0f;
+        config.line1_config.end_y = -2.0f;
+        config.line1_config.end_z = -3.0f;
+        config.line2_config.start_x = 45.0f;
+        config.line2_config.start_y = -14.0f;
+        config.line2_config.start_z = -3.5f;
+        config.line2_config.end_x = 0.0f;
+        config.line2_config.end_y = -14.0f;
+        config.line2_config.end_z = -3.5f;
     }
     
     // 设置基本配置（从 JSON 或默认值）

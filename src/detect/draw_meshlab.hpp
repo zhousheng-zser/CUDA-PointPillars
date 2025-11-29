@@ -211,16 +211,29 @@ inline bool SaveBoxesAsPCD(const std::vector<detect::ProcessingBox> &boxes,
         
     }
 
-    // Add line segment with intensity -2 (from config)
-    const auto& line_config = get_config().line_config;
-    nvtype::Float3 line_start(line_config.start_x, line_config.start_y, line_config.start_z);
-    nvtype::Float3 line_end(line_config.end_x, line_config.end_y, line_config.end_z);
+    // Add line1 segment with intensity -2 (from config)
+    const auto& line1_config = get_config().line1_config;
+    nvtype::Float3 line1_start(line1_config.start_x, line1_config.start_y, line1_config.start_z);
+    nvtype::Float3 line1_end(line1_config.end_x, line1_config.end_y, line1_config.end_z);
     
-    std::vector<nvtype::Float4> line_points;
-    interpolateEdge(line_start, line_end, edge_step, line_points);
+    std::vector<nvtype::Float4> line1_points;
+    interpolateEdge(line1_start, line1_end, edge_step, line1_points);
     
-    // Add line points with intensity -2
-    for (const auto &p : line_points) {
+    // Add line1 points with intensity -2
+    for (const auto &p : line1_points) {
+        out_points.push_back({p.x, p.y, p.z, -2.0f});
+    }
+    
+    // Add line2 segment with intensity -2 (from config)
+    const auto& line2_config = get_config().line2_config;
+    nvtype::Float3 line2_start(line2_config.start_x, line2_config.start_y, line2_config.start_z);
+    nvtype::Float3 line2_end(line2_config.end_x, line2_config.end_y, line2_config.end_z);
+    
+    std::vector<nvtype::Float4> line2_points;
+    interpolateEdge(line2_start, line2_end, edge_step, line2_points);
+    
+    // Add line2 points with intensity -2
+    for (const auto &p : line2_points) {
         out_points.push_back({p.x, p.y, p.z, -2.0f});
     }
     

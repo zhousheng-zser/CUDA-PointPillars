@@ -53,7 +53,8 @@ struct RangeConfig {
     double ground_plane_c;  // 地平面参数 c
     double ground_plane_d;  // 地平面参数 d
 
-    LineConfig line_config;
+    LineConfig line1_config;
+    LineConfig line2_config;
 };
 
 //---------------------------

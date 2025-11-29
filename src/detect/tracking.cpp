@@ -465,13 +465,17 @@ MultiObjectTracker::MultiObjectTracker(float iou_threshold, int max_age,
       dimension_strategy_(dimension_strategy) {
 }
 
-void MultiObjectTracker::update(const std::vector<BBox3D>& detections, 
+void MultiObjectTracker::update(std::vector<BBox3D>& detections, 
     std::vector<std::vector<std::array<float, 4>>> &car_points_frame, 
     uint64_t timestamp,
     std::vector<float> &points) {
 
     std::lock_guard<std::mutex> lock(trackers_mutex_);
     points_now = points;
+    
+    // 删除离 line2 太近的box
+    filter_detections_by_line2_distance(detections, car_points_frame);
+    
     Boxes_now = detections;
     // Step 1: Predict
     for (auto& trk : trackers_) {
@@ -584,6 +588,67 @@ void MultiObjectTracker::update(const std::vector<BBox3D>& detections,
         }
         trackers_.erase(trackers_.begin() + idx);
         trackers_id_.erase(trackers_id_.begin() + idx);
+    }
+}
+
+// Forward declaration
+static float point_to_line_distance(float px, float py, float pz,
+                                    float lx1, float ly1, float lz1,
+                                    float lx2, float ly2, float lz2);
+
+// Filter out detections that are too close to line2
+void MultiObjectTracker::filter_detections_by_line2_distance(
+    std::vector<BBox3D>& detections, 
+    std::vector<std::vector<std::array<float, 4>>>& car_points_frame) const {
+    
+    float min_distance = 4;
+    const auto& line2_config = get_config().line2_config;
+    float line2_start_x = line2_config.start_x;
+    float line2_start_y = line2_config.start_y;
+    float line2_start_z = line2_config.start_z;
+    float line2_end_x = line2_config.end_x;
+    float line2_end_y = line2_config.end_y;
+    float line2_end_z = line2_config.end_z;
+    
+    // Calculate distances for all detections
+    std::vector<float> distances;
+    distances.reserve(detections.size());
+    for (size_t j = 0; j < detections.size(); ++j) {
+        const auto& det = detections[j];
+        float distance = point_to_line_distance(
+            det.y(), det.x(), det.z(),  // 转为雷达坐标系
+            line2_start_x, line2_start_y, line2_start_z,
+            line2_end_x, line2_end_y, line2_end_z
+        );
+        distances.push_back(distance);
+    }
+    
+    // Use erase-remove idiom: collect indices to keep, then rebuild vectors
+    // This is more efficient than erasing from middle of vector
+    std::vector<size_t> indices_to_keep;
+    indices_to_keep.reserve(detections.size());
+    for (size_t j = 0; j < detections.size(); ++j) {
+        if (distances[j] >= min_distance) {
+            indices_to_keep.push_back(j);
+        }
+    }
+    
+    // Rebuild detections and car_points_frame with only kept indices
+    if (indices_to_keep.size() < detections.size()) {
+        std::vector<BBox3D> new_detections;
+        std::vector<std::vector<std::array<float, 4>>> new_car_points_frame;
+        new_detections.reserve(indices_to_keep.size());
+        new_car_points_frame.reserve(indices_to_keep.size());
+        
+        for (size_t idx : indices_to_keep) {
+            new_detections.push_back(detections[idx]);
+            if (idx < car_points_frame.size()) {
+                new_car_points_frame.push_back(car_points_frame[idx]);
+            }
+        }
+        
+        detections = std::move(new_detections);
+        car_points_frame = std::move(new_car_points_frame);
     }
 }
 

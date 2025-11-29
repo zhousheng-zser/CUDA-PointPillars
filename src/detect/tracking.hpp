@@ -123,7 +123,7 @@ public:
                       float end_x = 0.0f, float end_y = 0.0f, float end_z = 0.0f,
                       DimensionStrategy dimension_strategy = DimensionStrategy::TRIMMED_MAX);
     
-    void update(const std::vector<BBox3D>& detections, std::vector<std::vector<std::array<float, 4>>> &car_points_frame, uint64_t timestamp ,std::vector<float> &points);
+    void update(std::vector<BBox3D>& detections, std::vector<std::vector<std::array<float, 4>>> &car_points_frame, uint64_t timestamp ,std::vector<float> &points);
     
     struct BestResult {
         float length, width, height;
@@ -178,6 +178,10 @@ private:
     };
     
     Assignment linear_sum_assignment(const std::vector<std::vector<float>>& cost) const;
+    
+    // Filter out detections that are too close to line2
+    void filter_detections_by_line2_distance(std::vector<BBox3D>& detections, 
+                                             std::vector<std::vector<std::array<float, 4>>>& car_points_frame) const;
 };
 
 } // namespace tracking

@@ -135,7 +135,7 @@ std::vector<float> segment_plane_ransac(const std::vector<float>& points, float 
     return plane_model;
 }
 
-inline float hesai_to_kitti_intensity(float raw_i) {
+inline float intensity_to_kitti(float raw_i) {
     // 限制范围
     if (raw_i < 0) raw_i = 0.0;
     if (raw_i > 255) raw_i = 255.0;
@@ -148,6 +148,19 @@ inline float hesai_to_kitti_intensity(float raw_i) {
     if (kitti_i > 1) kitti_i = 1;
 
     return kitti_i;
+}
+
+inline float kitti_to_intensity(float kitti_i) {
+    // 确保输入在有效范围内
+    if (kitti_i < 0) kitti_i = 0.0;
+    if (kitti_i > 1) kitti_i = 1.0;
+
+    // 反向计算：kitti_i = log1p(raw_i) / log1p(255) 
+    // 所以：log1p(raw_i) = kitti_i * log1p(255)
+    // 因此：raw_i = expm1(kitti_i * log1p(255))
+    float raw_i = std::expm1(kitti_i * std::log1p(255.0f));
+    
+    return std::move(raw_i);
 }
 
 // 预处理：过滤点云（去除地面点，保留ROI区域内的点）
@@ -172,7 +185,7 @@ void pre_processing(std::vector<float> &src, std::vector<float> &points_filtered
             points_filtered.push_back(src[i]);
             points_filtered.push_back(src[i+1]);
             points_filtered.push_back(src[i+2]);
-            points_filtered.push_back(hesai_to_kitti_intensity(src[i+3]));
+            points_filtered.push_back(intensity_to_kitti(src[i+3]));
         }
         else 
         {   
@@ -301,7 +314,7 @@ void calib_3d_box(const std::vector<float> &points_filtered,
         
         if (point_in_3d_box(px, py, pz, cfg)) {
             points_in_box.push_back(nvtype::Float3(px, py, pz));
-            box.points.push_back(std::array<float, 4>{px, py, pz, points_filtered[i * 4 + 3]});
+            box.points.push_back(std::array<float, 4>{px, py, pz, kitti_to_intensity(points_filtered[i * 4 + 3])});
         }
     }
     
