@@ -536,7 +536,11 @@ void MultiObjectTracker::update(std::vector<BBox3D>& detections,
     // 没匹配的创建新追踪器
     for (int j : assignment.unmatched_det) {
         trackers_.emplace_back(detections[j], next_id_++, timestamp);
-        trackers_id_.emplace_back("");  
+        trackers_id_.emplace_back("");
+        // 为新创建的追踪器传入car_points_frame
+        if (j < car_points_frame.size()) {
+            trackers_.back().update(detections[j], timestamp, car_points_frame[j]);
+        }
     }
     
     // Step 6: Remove old trackers
