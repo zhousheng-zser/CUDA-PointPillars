@@ -36,7 +36,6 @@ thread_pool* pool = nullptr;
 std::unordered_map<std::thread::id, std::shared_ptr<pointpillar::lidar::Core> > thread_algo_ptr;
 cudaStream_t stream;
 tracking::MultiObjectTracker* mot = nullptr;
-InnoSDK::InnoPcRecorder* inno_pc_recorder = nullptr;
 
 void GetDeviceInfo(void)
 {
@@ -152,7 +151,7 @@ void loop_get_lidar_data()
 // Detection function called by HTTP server
 http_server::DetectionResult handle_detection_request(const std::string& unique_id, int road_id) 
 {
-    //std::this_thread::sleep_for(std::chrono::milliseconds(600)); /////////////////之后记得删   
+   
     http_server::DetectionResult result;
     tracking::MultiObjectTracker::BestResult best={0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f};
     std::vector<std::array<float, 4>> rendered_points;
@@ -170,14 +169,8 @@ http_server::DetectionResult handle_detection_request(const std::string& unique_
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
             T--;
         }
-        //if(T == 0)
-        //{ 
-            mot->result_map_[unique_id].status_code = 2;
-        //}
-        // else
-        // {
         best = mot->result_map_[unique_id].result;
-        //}
+        mot->result_map_[unique_id].status_code = 2;
     }
     std::vector<std::array<float, 4>> points_max_car = std::move(best.points_max_car);
     result.length = best.length;
@@ -217,8 +210,8 @@ void detect_task_lidar(std::vector<float> &points, std::vector<detect::Processin
     
     int points_size = points_filtered.size() / 4;
     std::vector<pointpillar::lidar::BoundingBox> bboxes = ptr->forward(points_filtered.data(), points_size, stream); 
-    
     detect::post_processing(bboxes, bboxes_result, points_filtered);
+
     // 暂时不用在这儿画框
     // if(cnt_zser%200==0)
     // {
@@ -227,11 +220,6 @@ void detect_task_lidar(std::vector<float> &points, std::vector<detect::Processin
     //                             current_time.time_since_epoch())
     //                             .count();
     //     std::string save_pcd_name ="../train/" + std::to_string(current_ms) + ".pcd";
-
-    //     delete inno_pc_recorder;
-    //     inno_pc_recorder = new InnoSDK::InnoPcRecorder(200, save_pcd_name);
-
-
     // }
     // {// roi框
     //     const float cx = get_config().center_x;
@@ -245,7 +233,6 @@ void detect_task_lidar(std::vector<float> &points, std::vector<detect::Processin
     // }
     // std::vector<std::array<float, 4>> rendered_points;
     // detect::SaveBoxesAsPCD(bboxes, points_filtered.data(), points_filtered.size()/4, "", get_config().point_cloud_draw_step, rendered_points);
-    // inno_pc_recorder->save_pointcloud_to_inno_pc(rendered_points);
     // cnt_zser++;
 }
 

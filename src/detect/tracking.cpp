@@ -467,8 +467,7 @@ MultiObjectTracker::MultiObjectTracker(float iou_threshold, int max_age,
 
 void MultiObjectTracker::update(std::vector<BBox3D>& detections, 
     std::vector<std::vector<std::array<float, 4>>> &car_points_frame, 
-    uint64_t timestamp,
-    std::vector<float> &points) {
+    uint64_t timestamp, std::vector<float> &points) {
 
     std::lock_guard<std::mutex> lock(trackers_mutex_);
     points_now = points;
@@ -554,7 +553,9 @@ void MultiObjectTracker::update(std::vector<BBox3D>& detections,
         else if(!trackers_id_[i].empty())
         {
             //如果状态为2  表示等待超时了也需要删除
-            if(result_map_[trackers_id_[i]].status_code == 2)
+            // 使用 find() 避免自动创建不存在的键
+            auto it = result_map_.find(trackers_id_[i]);
+            if(it != result_map_.end() && it->second.status_code == 2)
             {
                 indices_to_remove.push_back(i);
             }
@@ -566,12 +567,16 @@ void MultiObjectTracker::update(std::vector<BBox3D>& detections,
         size_t idx = *it;
         const std::string& unique_id = trackers_id_[idx];
         if ( !unique_id.empty()) {
-            if(result_map_[unique_id].status_code == 2)  //  追踪超时的  比如车不动了 需要获取最后一次观测值
+            // 使用 find() 避免自动创建不存在的键
+            auto result_it = result_map_.find(unique_id);
+            if(result_it != result_map_.end() && result_it->second.status_code == 2)  //  追踪超时的  比如车不动了 需要获取最后一次观测值
             {
                 //不更新了 直接删
                 result_map_.erase(unique_id);
+                trackers_.erase(trackers_.begin() + idx);
+                trackers_id_.erase(trackers_id_.begin() + idx);
             }
-            else //追踪不到的
+            else //追踪不到 但有ID  下次再删除
             {
                 // 在删除之前，如果有unique_id，更新result_map_
                 const auto& trk = trackers_[idx];
@@ -590,8 +595,10 @@ void MultiObjectTracker::update(std::vector<BBox3D>& detections,
                 update_result_entry(unique_id, best_result, 1, timestamp);  // 1 表示可以获取了
             }
         }
-        trackers_.erase(trackers_.begin() + idx);
-        trackers_id_.erase(trackers_id_.begin() + idx);
+        else {  // 没有ID的直接删
+            trackers_.erase(trackers_.begin() + idx);
+            trackers_id_.erase(trackers_id_.begin() + idx);
+        }
     }
 }
 
