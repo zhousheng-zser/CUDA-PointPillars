@@ -140,7 +140,7 @@ static inline void drawParallelLinesOnBottomFace(
             out_points.push_back({sp.x, sp.y, sp.z, -2.0f});
         }
         
-        const float segment_interval = 5.0f;
+        const float segment_interval = 1.0f;
         int num_segments = static_cast<int>(y_length / segment_interval);
         
         for (int seg = 1; seg <= num_segments; ++seg) {
@@ -241,6 +241,47 @@ inline bool SaveBoxesAsPCD(const std::vector<detect::ProcessingBox> &boxes,
         return save_pcd_file(file_name, out_points);
     }
     return true;
+}
+
+/**
+ * Append bounding boxes to existing points array (more efficient, no format conversion)
+ * Directly appends box edges to the points vector without clearing it
+ * @param boxes Vector of bounding boxes to render
+ * @param points Existing point cloud data (will be appended to)
+ * @param edge_step Step size for edge interpolation
+ */
+inline void SaveBoxes(const std::vector<detect::ProcessingBox> &boxes,
+                      std::vector<std::array<float, 4>> &points,
+                      float edge_step) {
+    if (boxes.empty()) {
+        return;
+    }
+    
+    // Reserve space for edge points (approximate)
+    const size_t approx_edge_points = static_cast<size_t>(boxes.size()) * 12 * 20;
+    points.reserve(points.size() + approx_edge_points);
+    
+    std::vector<nvtype::Float4> edge_points;
+    edge_points.reserve(12 * 20);
+    
+    for (size_t idx = 0; idx < boxes.size(); ++idx) {
+        const auto &b = boxes[idx];
+        std::array<nvtype::Float3, 8> cs;
+        boxCorners(b, cs);
+        const int edges[12][2] = {
+            {0,1},{1,2},{2,3},{3,0},
+            {4,5},{5,6},{6,7},{7,4},
+            {0,4},{1,5},{2,6},{3,7}
+        };
+        edge_points.clear();
+        for (int e = 0; e < 12; ++e) {
+            interpolateEdge(cs[edges[e][0]], cs[edges[e][1]], edge_step, edge_points);
+        }
+        float intensity = -2.0f;
+        for (const auto &q : edge_points) {
+            points.push_back({q.x, q.y, q.z, intensity});
+        }
+    }
 }
 
 /**

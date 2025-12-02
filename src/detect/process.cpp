@@ -1,4 +1,5 @@
 #include "detect/process.hpp"
+#include "detect/draw_meshlab.hpp"
 
 namespace detect {
 
@@ -301,7 +302,7 @@ void calib_3d_box(const std::vector<float> &points_filtered,
      // 边长*1.2  扩大一点点  防止检测框小  
     cfg.range_x = box.w * (0.5f+0.1f);  // w 对应 x 方向（point_in_3d_box 中会乘以2）
     cfg.range_y = box.l * (0.5f+0.1f);  // l 对应 y 方向（point_in_3d_box 中会乘以2）
-    cfg.range_z = box.h * (1.0f+0.1f);  // h 对应 z 方向（高度，不是半高）
+    cfg.range_z = box.h * (1.0f+0.2f);  // h 对应 z 方向（高度，不是半高）
     cfg.ry = box.rt;  // 旋转角度（都是绕Z轴旋转，在雷达坐标系XY平面内）
     // 筛选点云中属于ROI框的点
     std::vector<nvtype::Float3> points_in_box;
@@ -359,6 +360,9 @@ void post_processing(const std::vector<pointpillar::lidar::BoundingBox> &bboxes,
                 continue;
             else if(calibrated_box.h <0.6 || calibrated_box.w<0.6 || calibrated_box.l<0.6)
                 continue;
+
+            // 用单个框来画图，直接将框追加到calibrated_box.points后面（高效，无需格式转换）
+            detect::SaveBoxes({calibrated_box}, calibrated_box.points, get_config().point_cloud_draw_step);
             bboxes_result.push_back(calibrated_box);
         }
     }
