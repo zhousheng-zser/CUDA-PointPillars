@@ -125,12 +125,12 @@ cuda_add_executable(receiver-hsai
 )
 target_include_directories(receiver-hsai 
     PRIVATE   
-    /home/zser/HesaiLidar_SDK_2.0/sdk
+    ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/HesaiLidar_SDK_2.0/sdk
     src/include
 )
 target_link_directories(receiver-hsai
     PRIVATE
-    /home/zser/HesaiLidar_SDK_2.0/build
+    ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/HesaiLidar_SDK_2.0/build
 )
 
 target_link_libraries(receiver-hsai
@@ -157,14 +157,14 @@ cuda_add_executable(receiver-inno
 target_compile_definitions(receiver-inno PRIVATE _GLIBCXX_USE_CXX11_ABI=0)
 target_include_directories(receiver-inno 
     PRIVATE   
-    /home/zser/inno-lidar/apps/example
-    /home/zser/inno-lidar
+    ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/inno-lidar/apps/example
+    ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/inno-lidar
     src/include
 )
 target_link_directories(receiver-inno
     PRIVATE
-    /home/zser/inno-lidar/build_unix/apps/example
-    /home/zser/inno-lidar/lib
+    ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/inno-lidar/build_unix/apps/example
+    ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/inno-lidar/lib
 )
 
 target_link_libraries(receiver-inno
@@ -182,4 +182,74 @@ set_target_properties(receiver-inno PROPERTIES
 	INSTALL_RPATH "/usr/lib/aarch64-linux-gnu/nvidia"
 	BUILD_WITH_INSTALL_RPATH TRUE
 )
+#######################################################################
+
+####################### Installation #############################
+# Set installation prefix (use FORCE to override cached value if not specified via command line)
+if(NOT DEFINED CMAKE_INSTALL_PREFIX OR CMAKE_INSTALL_PREFIX STREQUAL "/usr/local")
+    set(CMAKE_INSTALL_PREFIX "/app/point_cloud_detect" CACHE PATH "Installation directory" FORCE)
+endif()
+
+# Install executables
+install(TARGETS receiver-hsai receiver-inno
+    RUNTIME DESTINATION bin
+)
+
+# Install shared libraries
+install(TARGETS pointpillar_core pointpillar_core_inno
+    LIBRARY DESTINATION lib
+)
+
+# Install Hesai SDK wrapper library
+install(FILES 
+    ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/HesaiLidar_SDK_2.0/build/libhesai_sdk_wrapper.so
+    DESTINATION lib
+    OPTIONAL
+)
+
+# Install Inno SDK wrapper library
+install(FILES 
+    ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/inno-lidar/build_unix/apps/example/libinno_sdk_wrapper.so
+    DESTINATION lib
+    OPTIONAL
+)
+
+# Install Inno SDK static libraries
+install(FILES 
+    ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/inno-lidar/lib/libinnolidarsdkclient.a
+    ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/inno-lidar/lib/libinnolidarsdkcommon.a
+    ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/inno-lidar/lib/libinnolidarutils.a
+    DESTINATION lib
+    OPTIONAL
+)
+
+# Install configuration files
+install(FILES 
+    ${CMAKE_CURRENT_SOURCE_DIR}/config-hsai.json
+    ${CMAKE_CURRENT_SOURCE_DIR}/config-inno.json
+    DESTINATION config
+)
+
+
+# Install model file
+install(FILES 
+    ${CMAKE_CURRENT_SOURCE_DIR}/model/pointpillar.plan
+    DESTINATION model
+    OPTIONAL
+)
+
+# Install web_show directory
+install(DIRECTORY 
+    ${CMAKE_CURRENT_SOURCE_DIR}/web_show/
+    DESTINATION web_show
+    FILES_MATCHING
+    PATTERN "*"
+)
+
+# Create installation directory if it doesn't exist
+install(CODE "file(MAKE_DIRECTORY \"${CMAKE_INSTALL_PREFIX}/bin\")")
+install(CODE "file(MAKE_DIRECTORY \"${CMAKE_INSTALL_PREFIX}/lib\")")
+install(CODE "file(MAKE_DIRECTORY \"${CMAKE_INSTALL_PREFIX}/config\")")
+install(CODE "file(MAKE_DIRECTORY \"${CMAKE_INSTALL_PREFIX}/model\")")
+install(CODE "file(MAKE_DIRECTORY \"${CMAKE_INSTALL_PREFIX}/web_show\")")
 #######################################################################

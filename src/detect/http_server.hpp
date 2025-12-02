@@ -34,7 +34,8 @@ void start_pointcloud_server(const std::string& host = "0.0.0.0",
 void async_forward_to_other_service(const std::string& unique_id,
                                    const tracking::MultiObjectTracker::BestResult& best,
                                    std::vector<std::array<float, 4>> &point_cloud,
-                                   int road_id);
+                                   std::vector<std::array<float, 4>> &points_max_car,
+                                   int road_id ,const std::string &lidar_tpye);
 
 } // namespace http_server
 

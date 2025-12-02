@@ -36,7 +36,6 @@ thread_pool* pool = nullptr;
 std::unordered_map<std::thread::id, std::shared_ptr<pointpillar::lidar::Core> > thread_algo_ptr;
 cudaStream_t stream;
 tracking::MultiObjectTracker* mot = nullptr;
-InnoSDK::InnoPcRecorder* inno_pc_recorder = nullptr;
 
 void GetDeviceInfo(void)
 {
@@ -152,7 +151,7 @@ void loop_get_lidar_data()
 // Detection function called by HTTP server
 http_server::DetectionResult handle_detection_request(const std::string& unique_id, int road_id) 
 {
-    //std::this_thread::sleep_for(std::chrono::milliseconds(600)); /////////////////之后记得删   
+   
     http_server::DetectionResult result;
     tracking::MultiObjectTracker::BestResult best={0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f};
     std::vector<std::array<float, 4>> rendered_points;
@@ -170,15 +169,10 @@ http_server::DetectionResult handle_detection_request(const std::string& unique_
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
             T--;
         }
-        //if(T == 0)
-        //{ 
-            mot->result_map_[unique_id].status_code = 2;
-        //}
-        // else
-        // {
         best = mot->result_map_[unique_id].result;
-        //}
+        mot->result_map_[unique_id].status_code = 2;
     }
+    std::vector<std::array<float, 4>> points_max_car = std::move(best.points_max_car);
     result.length = best.length;
     result.width = best.width;
     result.height = best.height;
@@ -187,13 +181,13 @@ http_server::DetectionResult handle_detection_request(const std::string& unique_
     result.centre_height = best.centre_h;
     result.speed = best.speed;
     result.score = best.score;
-    http_server::async_forward_to_other_service(unique_id, best, rendered_points, road_id);
+    http_server::async_forward_to_other_service(unique_id, best, rendered_points, points_max_car, road_id, "Inno");
     return result;
 }
 
 int cnt_zser = 0 ;
 // 检测 前处理->推理->后处理
-void detect_task_lidar(std::vector<float> &points, std::vector<pointpillar::lidar::BoundingBox> &bboxes_result) 
+void detect_task_lidar(std::vector<float> &points, std::vector<detect::ProcessingBox> &bboxes_result) 
 {
     bboxes_result.clear();
     if (points.empty()) 
@@ -216,8 +210,8 @@ void detect_task_lidar(std::vector<float> &points, std::vector<pointpillar::lida
     
     int points_size = points_filtered.size() / 4;
     std::vector<pointpillar::lidar::BoundingBox> bboxes = ptr->forward(points_filtered.data(), points_size, stream); 
-    
     detect::post_processing(bboxes, bboxes_result, points_filtered);
+
     // 暂时不用在这儿画框
     // if(cnt_zser%200==0)
     // {
@@ -226,11 +220,6 @@ void detect_task_lidar(std::vector<float> &points, std::vector<pointpillar::lida
     //                             current_time.time_since_epoch())
     //                             .count();
     //     std::string save_pcd_name ="../train/" + std::to_string(current_ms) + ".pcd";
-
-    //     delete inno_pc_recorder;
-    //     inno_pc_recorder = new InnoSDK::InnoPcRecorder(200, save_pcd_name);
-
-
     // }
     // {// roi框
     //     const float cx = get_config().center_x;
@@ -239,12 +228,11 @@ void detect_task_lidar(std::vector<float> &points, std::vector<pointpillar::lida
     //     const float w  = get_config().range_x * 2.0f;
     //     const float l  = get_config().range_y * 2.0f;
     //     const float h  = get_config().range_z;
-    //     pointpillar::lidar::BoundingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
+    //     detect::ProcessingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
     //     bboxes.push_back(range_box);
     // }
     // std::vector<std::array<float, 4>> rendered_points;
     // detect::SaveBoxesAsPCD(bboxes, points_filtered.data(), points_filtered.size()/4, "", get_config().point_cloud_draw_step, rendered_points);
-    // inno_pc_recorder->save_pointcloud_to_inno_pc(rendered_points);
     // cnt_zser++;
 }
 
@@ -270,13 +258,14 @@ void point_cloud_detect() {
             }
             
              //先一次跑全部车道 之后再看是不是每个车道开个线程去跑
-            std::vector<pointpillar::lidar::BoundingBox> bboxes;
+            std::vector<detect::ProcessingBox> bboxes;
             auto result_pool = pool->enqueue(detect_task_lidar, std::ref(points), std::ref(bboxes));
             result_pool.get();
             
             // 计算车道id
             std::vector<tracking::BBox3D> detections_frame;
-            for (const auto& box : bboxes) {
+            std::vector<std::vector<std::array<float, 4>>> car_points_frame;
+            for (auto& box : bboxes) {
                 const float center_x = get_config().center_x;
                 const float range_x  = get_config().range_x;
                 const float max_x    = center_x + range_x;
@@ -305,10 +294,11 @@ void point_cloud_detect() {
                 //车前下点作为车中心
                 detections_frame.emplace_back(
                      box.y-0.5*box.w, box.x, box.z, box.w, box.l, box.h, box.rt, static_cast<float>(road_id), box.score);
+                car_points_frame.push_back(std::move(box.points));
             }
 
             // Run tracking on both frames
-            mot->update(detections_frame, time/1000, points);
+            mot->update(detections_frame,car_points_frame, time/1000, points);
             // {// roi框
             //     const float cx = get_config().center_x;
             //     const float cy = get_config().center_y;
@@ -316,7 +306,7 @@ void point_cloud_detect() {
             //     const float w  = get_config().range_x * 2.0f;
             //     const float l  = get_config().range_y * 2.0f;
             //     const float h  = get_config().range_z;
-            //     pointpillar::lidar::BoundingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
+            //     detect::ProcessingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
             //     bboxes.push_back(range_box);
             // }
             
@@ -327,7 +317,7 @@ void point_cloud_detect() {
             //     const float w  = 34.56 * 2.0f;
             //     const float l  = 39.680 * 2.0f;
             //     const float h  = 4;
-            //     pointpillar::lidar::BoundingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
+            //     detect::ProcessingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
             //     bboxes.push_back(range_box);
             // }
 
@@ -350,17 +340,17 @@ void point_cloud_detect() {
 
 int main(int argc, char** argv) {
     // Set config file path before initializing config
-    RangeConfigSingleton::setConfigFilePath("/home/zser/CUDA-PointPillars/config-inno.json");
+    RangeConfigSingleton::setConfigFilePath("../config/config-inno.json");
     
     // Construct MultiObjectTracker after config is initialized
     // Config is automatically initialized when getInstance() is first called
     mot = new tracking::MultiObjectTracker(0.75f, 20,
-        get_config().line_config.start_x,
-        get_config().line_config.start_y,
-        get_config().line_config.start_z,
-        get_config().line_config.end_x,
-        get_config().line_config.end_y,
-        get_config().line_config.end_z,
+        get_config().line1_config.start_x,
+        get_config().line1_config.start_y,
+        get_config().line1_config.start_z,
+        get_config().line1_config.end_x,
+        get_config().line1_config.end_y,
+        get_config().line1_config.end_z,
         tracking::DimensionStrategy::TRIMMED_MAX);
     
     pool = new thread_pool(1);

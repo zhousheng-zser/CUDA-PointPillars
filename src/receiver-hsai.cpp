@@ -119,7 +119,6 @@ void loop_get_lidar_data()
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
                 pc_data = HesaiSDK::GetPointCloudData();
             }
-            //std::cout << "pc_data.size() = " << pc_data.size() << std::endl;
             if (!pc_data.empty() && pc_data.size() >= 20000) {
                 std::vector<float> points_xyzi;
                 for (const auto& p : pc_data) 
@@ -150,11 +149,18 @@ void loop_get_lidar_data()
 }
 
 // Detection function called by HTTP server
-http_server::DetectionResult handle_detection_request(const std::string& unique_id, int road_id) {
+http_server::DetectionResult handle_detection_request(const std::string& unique_id, int road_id) 
+{
+   
     http_server::DetectionResult result;
     tracking::MultiObjectTracker::BestResult best={0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f};
     std::vector<std::array<float, 4>> rendered_points;
     bool flag =mot->set_unique_id_for_closest_vehicle(unique_id, road_id,rendered_points); //去设置unique_id
+    if( !flag )
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(150));  //再给一次机会 
+        flag = mot->set_unique_id_for_closest_vehicle(unique_id, road_id,rendered_points);
+    }
     if(flag)
     {
         int T = 30;   // 30*200ms = 6s
@@ -163,15 +169,10 @@ http_server::DetectionResult handle_detection_request(const std::string& unique_
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
             T--;
         }
-        if(T == 0)
-        { 
-            mot->result_map_[unique_id].status_code = 2;
-        }
-        else
-        {
-            best = mot->result_map_[unique_id].result;
-        }
+        best = mot->result_map_[unique_id].result;
+        mot->result_map_[unique_id].status_code = 2;
     }
+    std::vector<std::array<float, 4>> points_max_car = std::move(best.points_max_car);
     result.length = best.length;
     result.width = best.width;
     result.height = best.height;
@@ -180,21 +181,20 @@ http_server::DetectionResult handle_detection_request(const std::string& unique_
     result.centre_height = best.centre_h;
     result.speed = best.speed;
     result.score = best.score;
-    http_server::async_forward_to_other_service(unique_id, best, rendered_points, road_id);
+    http_server::async_forward_to_other_service(unique_id, best, rendered_points, points_max_car, road_id, "Hsai");
     return result;
 }
 
 int cnt_zser = 0 ;
 // 检测 前处理->推理->后处理
-void detect_task_lidar(std::vector<float> &points, std::vector<pointpillar::lidar::BoundingBox> &bboxes_result) 
+void detect_task_lidar(std::vector<float> &points, std::vector<detect::ProcessingBox> &bboxes_result) 
 {
     bboxes_result.clear();
-    
     if (points.empty()) 
         return;
     std::vector<float> points_filtered;
     detect::pre_processing(points, points_filtered, get_config());
-    
+
     std::thread::id id_ = std::this_thread::get_id();
     if (thread_algo_ptr[id_] == nullptr) {
         thread_algo_ptr[id_] = create_core();
@@ -209,22 +209,30 @@ void detect_task_lidar(std::vector<float> &points, std::vector<pointpillar::lida
         return;
     
     int points_size = points_filtered.size() / 4;
-    //printf("points_size = %d\n", points_size);
-    
     std::vector<pointpillar::lidar::BoundingBox> bboxes = ptr->forward(points_filtered.data(), points_size, stream); 
     detect::post_processing(bboxes, bboxes_result, points_filtered);
 
     // 暂时不用在这儿画框
-    // if(cnt_zser % 100 ==0)
+    // if(cnt_zser%200==0)
     // {
     //     auto current_time = std::chrono::system_clock::now();
     //     auto current_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
     //                             current_time.time_since_epoch())
     //                             .count();
     //     std::string save_pcd_name ="../train/" + std::to_string(current_ms) + ".pcd";
-    //     std::vector<std::array<float, 4>> rendered_points;
-    //     detect::SaveBoxesAsPCD({}, points_filtered.data(), points_filtered.size()/4, save_pcd_name, get_config().point_cloud_draw_step, rendered_points);
     // }
+    // {// roi框
+    //     const float cx = get_config().center_x;
+    //     const float cy = get_config().center_y;
+    //     const float cz = get_config().min_z;
+    //     const float w  = get_config().range_x * 2.0f;
+    //     const float l  = get_config().range_y * 2.0f;
+    //     const float h  = get_config().range_z;
+    //     detect::ProcessingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
+    //     bboxes.push_back(range_box);
+    // }
+    // std::vector<std::array<float, 4>> rendered_points;
+    // detect::SaveBoxesAsPCD(bboxes, points_filtered.data(), points_filtered.size()/4, "", get_config().point_cloud_draw_step, rendered_points);
     // cnt_zser++;
 }
 
@@ -250,13 +258,14 @@ void point_cloud_detect() {
             }
             
              //先一次跑全部车道 之后再看是不是每个车道开个线程去跑
-            std::vector<pointpillar::lidar::BoundingBox> bboxes;
+            std::vector<detect::ProcessingBox> bboxes;
             auto result_pool = pool->enqueue(detect_task_lidar, std::ref(points), std::ref(bboxes));
             result_pool.get();
             
             // 计算车道id
             std::vector<tracking::BBox3D> detections_frame;
-            for (const auto& box : bboxes) {
+            std::vector<std::vector<std::array<float, 4>>> car_points_frame;
+            for (auto& box : bboxes) {
                 const float center_x = get_config().center_x;
                 const float range_x  = get_config().range_x;
                 const float max_x    = center_x + range_x;
@@ -284,11 +293,12 @@ void point_cloud_detect() {
                 // y-前后 x-左右 z-上下
                 //车前下点作为车中心
                 detections_frame.emplace_back(
-                     box.y-0.5*box.w, box.x, box.z,    box.w, box.l, box.h, box.rt, static_cast<float>(road_id), box.score);
+                     box.y-0.5*box.w, box.x, box.z, box.w, box.l, box.h, box.rt, static_cast<float>(road_id), box.score);
+                car_points_frame.push_back(std::move(box.points));
             }
 
             // Run tracking on both frames
-            mot->update(detections_frame, time/1000, points);
+            mot->update(detections_frame,car_points_frame, time/1000, points);
             // {// roi框
             //     const float cx = get_config().center_x;
             //     const float cy = get_config().center_y;
@@ -296,7 +306,7 @@ void point_cloud_detect() {
             //     const float w  = get_config().range_x * 2.0f;
             //     const float l  = get_config().range_y * 2.0f;
             //     const float h  = get_config().range_z;
-            //     pointpillar::lidar::BoundingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
+            //     detect::ProcessingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
             //     bboxes.push_back(range_box);
             // }
             
@@ -307,7 +317,7 @@ void point_cloud_detect() {
             //     const float w  = 34.56 * 2.0f;
             //     const float l  = 39.680 * 2.0f;
             //     const float h  = 4;
-            //     pointpillar::lidar::BoundingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
+            //     detect::ProcessingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
             //     bboxes.push_back(range_box);
             // }
 
@@ -317,6 +327,8 @@ void point_cloud_detect() {
             //                       .count();
             // std::string save_pcd_name =
             //     "../results/detection_" + std::to_string(time) + "_" + std::to_string(current_ms) + ".pcd";
+            // std::vector<std::array<float, 4>> rendered_points;
+            // detect::SaveBoxesAsPCD(bboxes, points.data(), points.size()/4, save_pcd_name, get_config().point_cloud_draw_step, rendered_points);
             
         } catch (const std::exception& e) {
             std::cerr << "Error in handle_detection_request: " << e.what() << std::endl;
@@ -328,17 +340,17 @@ void point_cloud_detect() {
 
 int main(int argc, char** argv) {
     // Set config file path before initializing config
-    RangeConfigSingleton::setConfigFilePath("/home/zser/CUDA-PointPillars/config-hsai.json");
+    RangeConfigSingleton::setConfigFilePath("../config/config-hsai.json");
     
     // Construct MultiObjectTracker after config is initialized
     // Config is automatically initialized when getInstance() is first called
     mot = new tracking::MultiObjectTracker(0.75f, 20,
-        get_config().line_config.start_x,
-        get_config().line_config.start_y,
-        get_config().line_config.start_z,
-        get_config().line_config.end_x,
-        get_config().line_config.end_y,
-        get_config().line_config.end_z,
+        get_config().line1_config.start_x,
+        get_config().line1_config.start_y,
+        get_config().line1_config.start_z,
+        get_config().line1_config.end_x,
+        get_config().line1_config.end_y,
+        get_config().line1_config.end_z,
         tracking::DimensionStrategy::TRIMMED_MAX);
     
     pool = new thread_pool(1);

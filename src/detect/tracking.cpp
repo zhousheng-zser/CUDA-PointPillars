@@ -225,7 +225,7 @@ BBox3D Tracker::predict(float dt) {
     return BBox3D(pos[0], pos[1], pos[2], l, w, h, yaw_, line_, score_);
 }
 
-void Tracker::update(const BBox3D& bbox3d, uint64_t timestamp) {
+void Tracker::update(const BBox3D& bbox3d, uint64_t timestamp, std::vector<std::array<float, 4>> &points_max_car) {
     BBox3D previous_observation;
     if (!observations_.empty()) {
         previous_observation = observations_.back();
@@ -241,6 +241,12 @@ void Tracker::update(const BBox3D& bbox3d, uint64_t timestamp) {
     line_ = bbox3d.line();
     // Update score to maximum
     score_ = std::max(score_, bbox3d.score());
+    
+    // Update points_max_car_ if new one is larger
+    if (points_max_car.size() > points_max_car_.size()) {
+        points_max_car_.clear();
+        points_max_car_ = std::move(points_max_car);
+    }
     
     // Update speed
     float dt = (timestamp - last_timestamp_) / 1000.0f; // ms -> s
@@ -291,12 +297,22 @@ float Tracker::get_speed() const {
     }
     
     // Calculate average speed from the first use_count values
+    // Filter out speeds greater than 200km/h
+    const float max_speed = 200.0f / 3.6f;
     float sum = 0.0f;
+    size_t valid_count = 0;
     for (size_t i = 0; i < use_count; ++i) {
-        sum += speed_[i];
+        if (speed_[i] <= max_speed) {
+            sum += speed_[i];
+            valid_count++;
+        }
     }
     
-    return sum / static_cast<float>(use_count);
+    if (valid_count == 0) {
+        return 0.0f;
+    }
+    
+    return sum / static_cast<float>(valid_count);
 }
 
 float Tracker::get_length(DimensionStrategy strategy) const {
@@ -449,9 +465,16 @@ MultiObjectTracker::MultiObjectTracker(float iou_threshold, int max_age,
       dimension_strategy_(dimension_strategy) {
 }
 
-void MultiObjectTracker::update(const std::vector<BBox3D>& detections, uint64_t timestamp ,std::vector<float> &points) {
+void MultiObjectTracker::update(std::vector<BBox3D>& detections, 
+    std::vector<std::vector<std::array<float, 4>>> &car_points_frame, 
+    uint64_t timestamp, std::vector<float> &points) {
+
     std::lock_guard<std::mutex> lock(trackers_mutex_);
     points_now = points;
+    
+    // 删除离 line2 太近的box
+    filter_detections_by_line2_distance(detections, car_points_frame);
+    
     Boxes_now = detections;
     // Step 1: Predict
     for (auto& trk : trackers_) {
@@ -489,30 +512,34 @@ void MultiObjectTracker::update(const std::vector<BBox3D>& detections, uint64_t 
     for (const auto& match : assignment.matched) {
         int i = match.first;
         int j = match.second;
-        trackers_[i].update(detections[j], timestamp);
-        
-        if (!trackers_id_[i].empty()) {
-            const std::string& unique_id = trackers_id_[i];
-            const auto& trk = trackers_[i];
-            BBox3D val = trk.get_last_observation();  // 使用观测值，因为已经匹配上了
-            BestResult best_result;
-            best_result.length = trk.get_length(dimension_strategy_);
-            best_result.width = trk.get_width(dimension_strategy_);
-            best_result.height = trk.get_height(dimension_strategy_);
-            best_result.centre_l = val.x();
-            best_result.centre_w = val.y();
-            best_result.centre_h = val.z();
-            best_result.speed = trk.get_speed();
-            best_result.score = trk.get_score();
-            
-            update_result_entry(unique_id, best_result, 0, timestamp);
-        }
+        trackers_[i].update(detections[j], timestamp, car_points_frame[j]);
+        // 只更新追踪器  暂时不用更新result_map_
+        // if (!trackers_id_[i].empty()) {
+        //     const std::string& unique_id = trackers_id_[i];
+        //     const auto& trk = trackers_[i];
+        //     BBox3D val = trk.get_last_observation();  // 使用观测值，因为已经匹配上了
+        //     BestResult best_result;
+        //     best_result.length = trk.get_length(dimension_strategy_);
+        //     best_result.width = trk.get_width(dimension_strategy_);
+        //     best_result.height = trk.get_height(dimension_strategy_);
+        //     best_result.centre_l = val.x();
+        //     best_result.centre_w = val.y();
+        //     best_result.centre_h = val.z();
+        //     best_result.speed = trk.get_speed();
+        //     best_result.score = trk.get_score();
+        //     best_result.points_max_car = trk.get_points_max_car();
+        //     update_result_entry(unique_id, best_result, 0, timestamp);
+        // }
     }
     
     // 没匹配的创建新追踪器
     for (int j : assignment.unmatched_det) {
         trackers_.emplace_back(detections[j], next_id_++, timestamp);
-        trackers_id_.emplace_back("");  
+        trackers_id_.emplace_back("");
+        // 为新创建的追踪器传入car_points_frame
+        if (j < car_points_frame.size()) {
+            trackers_.back().update(detections[j], timestamp, car_points_frame[j]);
+        }
     }
     
     // Step 6: Remove old trackers
@@ -526,7 +553,9 @@ void MultiObjectTracker::update(const std::vector<BBox3D>& detections, uint64_t 
         else if(!trackers_id_[i].empty())
         {
             //如果状态为2  表示等待超时了也需要删除
-            if(result_map_[trackers_id_[i]].status_code == 2)
+            // 使用 find() 避免自动创建不存在的键
+            auto it = result_map_.find(trackers_id_[i]);
+            if(it != result_map_.end() && it->second.status_code == 2)
             {
                 indices_to_remove.push_back(i);
             }
@@ -538,12 +567,16 @@ void MultiObjectTracker::update(const std::vector<BBox3D>& detections, uint64_t 
         size_t idx = *it;
         const std::string& unique_id = trackers_id_[idx];
         if ( !unique_id.empty()) {
-            if(result_map_[unique_id].status_code == 2)  //  超时的  比如车不动了 需要获取最后一次观测值
+            // 使用 find() 避免自动创建不存在的键
+            auto result_it = result_map_.find(unique_id);
+            if(result_it != result_map_.end() && result_it->second.status_code == 2)  //  追踪超时的  比如车不动了 需要获取最后一次观测值
             {
                 //不更新了 直接删
                 result_map_.erase(unique_id);
+                trackers_.erase(trackers_.begin() + idx);
+                trackers_id_.erase(trackers_id_.begin() + idx);
             }
-            else
+            else //追踪不到 但有ID  下次再删除
             {
                 // 在删除之前，如果有unique_id，更新result_map_
                 const auto& trk = trackers_[idx];
@@ -557,11 +590,76 @@ void MultiObjectTracker::update(const std::vector<BBox3D>& detections, uint64_t 
                 best_result.centre_h = val.z();
                 best_result.speed = trk.get_speed();
                 best_result.score = trk.get_score();
+                best_result.points_max_car.clear();
+                best_result.points_max_car = std::move(trk.points_max_car_);
                 update_result_entry(unique_id, best_result, 1, timestamp);  // 1 表示可以获取了
             }
         }
-        trackers_.erase(trackers_.begin() + idx);
-        trackers_id_.erase(trackers_id_.begin() + idx);
+        else {  // 没有ID的直接删
+            trackers_.erase(trackers_.begin() + idx);
+            trackers_id_.erase(trackers_id_.begin() + idx);
+        }
+    }
+}
+
+// Forward declaration
+static float point_to_line_distance(float px, float py, float pz,
+                                    float lx1, float ly1, float lz1,
+                                    float lx2, float ly2, float lz2);
+
+// Filter out detections that are too close to line2
+void MultiObjectTracker::filter_detections_by_line2_distance(
+    std::vector<BBox3D>& detections, 
+    std::vector<std::vector<std::array<float, 4>>>& car_points_frame) const {
+    
+    float min_distance = 4;
+    const auto& line2_config = get_config().line2_config;
+    float line2_start_x = line2_config.start_x;
+    float line2_start_y = line2_config.start_y;
+    float line2_start_z = line2_config.start_z;
+    float line2_end_x = line2_config.end_x;
+    float line2_end_y = line2_config.end_y;
+    float line2_end_z = line2_config.end_z;
+    
+    // Calculate distances for all detections
+    std::vector<float> distances;
+    distances.reserve(detections.size());
+    for (size_t j = 0; j < detections.size(); ++j) {
+        const auto& det = detections[j];
+        float distance = point_to_line_distance(
+            det.y(), det.x(), det.z(),  // 转为雷达坐标系
+            line2_start_x, line2_start_y, line2_start_z,
+            line2_end_x, line2_end_y, line2_end_z
+        );
+        distances.push_back(distance);
+    }
+    
+    // Use erase-remove idiom: collect indices to keep, then rebuild vectors
+    // This is more efficient than erasing from middle of vector
+    std::vector<size_t> indices_to_keep;
+    indices_to_keep.reserve(detections.size());
+    for (size_t j = 0; j < detections.size(); ++j) {
+        if (distances[j] >= min_distance) {
+            indices_to_keep.push_back(j);
+        }
+    }
+    
+    // Rebuild detections and car_points_frame with only kept indices
+    if (indices_to_keep.size() < detections.size()) {
+        std::vector<BBox3D> new_detections;
+        std::vector<std::vector<std::array<float, 4>>> new_car_points_frame;
+        new_detections.reserve(indices_to_keep.size());
+        new_car_points_frame.reserve(indices_to_keep.size());
+        
+        for (size_t idx : indices_to_keep) {
+            new_detections.push_back(detections[idx]);
+            if (idx < car_points_frame.size()) {
+                new_car_points_frame.push_back(car_points_frame[idx]);
+            }
+        }
+        
+        detections = std::move(new_detections);
+        car_points_frame = std::move(new_car_points_frame);
     }
 }
 
@@ -598,14 +696,14 @@ static float point_to_line_distance(float px, float py, float pz,
 
 bool MultiObjectTracker::set_unique_id_for_closest_vehicle(const std::string& unique_id, int road_id, std::vector<std::array<float, 4>> &rendered_points) {
     std::lock_guard<std::mutex> lock(trackers_mutex_);
-    std::vector<pointpillar::lidar::BoundingBox> bboxes ;
+    std::vector<detect::ProcessingBox> bboxes ;
     const float cx = get_config().center_x;
     const float cy = get_config().center_y;
     const float cz = get_config().min_z;
     const float w  = get_config().range_x * 2.0f;
     const float l  = get_config().range_y * 2.0f;
     const float h  = get_config().range_z;
-    pointpillar::lidar::BoundingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
+    detect::ProcessingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
     bboxes.push_back(range_box);
 
     // detect::SaveBoxesAsPCD({}, points_filtered.data(), points_filtered.size()/4, "", get_config().point_cloud_draw_step, rendered_points);
@@ -689,7 +787,7 @@ bool MultiObjectTracker::set_unique_id_for_closest_vehicle(const std::string& un
     best_result.speed = trk.get_speed();
     best_result.score = trk.get_score();
     uint64_t timestamp = trk.get_last_timestamp();
-    
+    best_result.points_max_car.clear();
     // Update result_map_ with status_code 0 (success)
     update_result_entry(unique_id, best_result, 0, timestamp);
     return true;
@@ -869,7 +967,7 @@ MultiObjectTracker::Assignment MultiObjectTracker::linear_sum_assignment(
     return assignment;
 }
 
-void MultiObjectTracker::update_result_entry(const std::string& unique_id, const BestResult& result, int status_code, uint64_t timestamp) {
+void MultiObjectTracker::update_result_entry(const std::string& unique_id, BestResult& result, int status_code, uint64_t timestamp) {
     result_map_[unique_id] = ResultEntry(result, status_code, timestamp);
 }
 

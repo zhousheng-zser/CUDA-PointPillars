@@ -27,7 +27,7 @@ cd OpenPCDet && git checkout 846cf3e && python3 setup.py develop
 ```
 Download [PTM](https://drive.google.com/file/d/1wMxWTpU1qUoY3DsCH31WJmvJxcjFXKlm/view) to ckpts/, then use below command to export ONNX model:
 ```
-python3 tool/export_onnx.py --ckpt ckpts/pointpillar_7728.pth --out_dir model
+python tool/export_onnx.py --ckpt ckpts/checkpoint_epoch_80.pth --out_dir model
 ```
 Use below command to evaluate on kitti dataset, follow [Evaluation on Kitti](tool/eval/README.md) to get more detail for dataset preparation.
 ```

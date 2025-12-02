@@ -10,7 +10,7 @@
 #include <string>
 #include <fstream>
 #include <cmath>
-#include "pointpillar/lidar-postprocess.hpp"
+#include "process.hpp"
 #include "common/dtype.hpp"
 #include "config.hpp"
 
@@ -21,7 +21,7 @@ namespace detect {
  * @param box The bounding box
  * @param corners Output array of 8 corner points
  */
-static inline void boxCorners(const pointpillar::lidar::BoundingBox &box, 
+static inline void boxCorners(const detect::ProcessingBox &box, 
                                std::array<nvtype::Float3, 8> &corners) {
     const float cx = box.x, cy = box.y, cz = box.z;
     const float w = box.w, l = box.l, h = box.h;
@@ -140,7 +140,7 @@ static inline void drawParallelLinesOnBottomFace(
             out_points.push_back({sp.x, sp.y, sp.z, -2.0f});
         }
         
-        const float segment_interval = 5.0f;
+        const float segment_interval = 1.0f;
         int num_segments = static_cast<int>(y_length / segment_interval);
         
         for (int seg = 1; seg <= num_segments; ++seg) {
@@ -168,7 +168,7 @@ static inline void drawParallelLinesOnBottomFace(
  * @param file_name Output file path
  * @param edge_step Step size for edge interpolation (default: 0.05)
  */
-inline bool SaveBoxesAsPCD(const std::vector<pointpillar::lidar::BoundingBox> &boxes,
+inline bool SaveBoxesAsPCD(const std::vector<detect::ProcessingBox> &boxes,
                     const float *points_xyzi,
                     int num_points,
                     const std::string &file_name,
@@ -211,16 +211,29 @@ inline bool SaveBoxesAsPCD(const std::vector<pointpillar::lidar::BoundingBox> &b
         
     }
 
-    // Add line segment with intensity -2 (from config)
-    const auto& line_config = get_config().line_config;
-    nvtype::Float3 line_start(line_config.start_x, line_config.start_y, line_config.start_z);
-    nvtype::Float3 line_end(line_config.end_x, line_config.end_y, line_config.end_z);
+    // Add line1 segment with intensity -2 (from config)
+    const auto& line1_config = get_config().line1_config;
+    nvtype::Float3 line1_start(line1_config.start_x, line1_config.start_y, line1_config.start_z);
+    nvtype::Float3 line1_end(line1_config.end_x, line1_config.end_y, line1_config.end_z);
     
-    std::vector<nvtype::Float4> line_points;
-    interpolateEdge(line_start, line_end, edge_step, line_points);
+    std::vector<nvtype::Float4> line1_points;
+    interpolateEdge(line1_start, line1_end, edge_step, line1_points);
     
-    // Add line points with intensity -2
-    for (const auto &p : line_points) {
+    // Add line1 points with intensity -2
+    for (const auto &p : line1_points) {
+        out_points.push_back({p.x, p.y, p.z, -2.0f});
+    }
+    
+    // Add line2 segment with intensity -2 (from config)
+    const auto& line2_config = get_config().line2_config;
+    nvtype::Float3 line2_start(line2_config.start_x, line2_config.start_y, line2_config.start_z);
+    nvtype::Float3 line2_end(line2_config.end_x, line2_config.end_y, line2_config.end_z);
+    
+    std::vector<nvtype::Float4> line2_points;
+    interpolateEdge(line2_start, line2_end, edge_step, line2_points);
+    
+    // Add line2 points with intensity -2
+    for (const auto &p : line2_points) {
         out_points.push_back({p.x, p.y, p.z, -2.0f});
     }
     
@@ -228,6 +241,47 @@ inline bool SaveBoxesAsPCD(const std::vector<pointpillar::lidar::BoundingBox> &b
         return save_pcd_file(file_name, out_points);
     }
     return true;
+}
+
+/**
+ * Append bounding boxes to existing points array (more efficient, no format conversion)
+ * Directly appends box edges to the points vector without clearing it
+ * @param boxes Vector of bounding boxes to render
+ * @param points Existing point cloud data (will be appended to)
+ * @param edge_step Step size for edge interpolation
+ */
+inline void SaveBoxes(const std::vector<detect::ProcessingBox> &boxes,
+                      std::vector<std::array<float, 4>> &points,
+                      float edge_step) {
+    if (boxes.empty()) {
+        return;
+    }
+    
+    // Reserve space for edge points (approximate)
+    const size_t approx_edge_points = static_cast<size_t>(boxes.size()) * 12 * 20;
+    points.reserve(points.size() + approx_edge_points);
+    
+    std::vector<nvtype::Float4> edge_points;
+    edge_points.reserve(12 * 20);
+    
+    for (size_t idx = 0; idx < boxes.size(); ++idx) {
+        const auto &b = boxes[idx];
+        std::array<nvtype::Float3, 8> cs;
+        boxCorners(b, cs);
+        const int edges[12][2] = {
+            {0,1},{1,2},{2,3},{3,0},
+            {4,5},{5,6},{6,7},{7,4},
+            {0,4},{1,5},{2,6},{3,7}
+        };
+        edge_points.clear();
+        for (int e = 0; e < 12; ++e) {
+            interpolateEdge(cs[edges[e][0]], cs[edges[e][1]], edge_step, edge_points);
+        }
+        float intensity = -2.0f;
+        for (const auto &q : edge_points) {
+            points.push_back({q.x, q.y, q.z, intensity});
+        }
+    }
 }
 
 /**
@@ -245,7 +299,7 @@ inline bool SaveBoxesAsPCD(const std::vector<pointpillar::lidar::BoundingBox> &b
  * @param line_end_y Line segment end point y coordinate
  * @param line_end_z Line segment end point z coordinate
  */
-inline bool SaveBoxesAsPCDWithLine(const std::vector<pointpillar::lidar::BoundingBox> &boxes,
+inline bool SaveBoxesAsPCDWithLine(const std::vector<detect::ProcessingBox> &boxes,
                                     const float *points_xyzi,
                                     int num_points,
                                     const std::string &file_name,

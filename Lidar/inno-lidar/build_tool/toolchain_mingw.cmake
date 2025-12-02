@@ -1,2 +1,0 @@
-set(CMAKE_CXX_COMPILER_WORKS TRUE CACHE BOOL "C++ compiler works")
-set(CMAKE_C_COMPILER_WORKS TRUE CACHE BOOL "C compiler works")
