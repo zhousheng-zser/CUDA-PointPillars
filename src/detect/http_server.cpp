@@ -13,7 +13,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <mutex>
-#include <atomic>
 
 using json = nlohmann::json;
 
@@ -91,84 +90,29 @@ static void write_log(const std::string& message) {
     // std::cout << message << std::endl;
 }
 
-
-// 带队列监控的 TaskQueue 包装类
-class MonitoredTaskQueue : public httplib::TaskQueue {
-public:
-    explicit MonitoredTaskQueue(httplib::ThreadPool* pool) : pool_(pool) {}
-    
-    bool enqueue(std::function<void()> fn) override {
-        // 在包装函数中记录队列长度
-        auto wrapped_fn = [this, fn = std::move(fn)]() {
-            // 执行前减少计数
-            queue_count_.fetch_sub(1);
-            
-            // 执行原始函数
-            fn();
-        };
-        
-        // 增加计数
-        size_t queue_size = queue_count_.fetch_add(1) + 1;
-        
-        // 每10个请求或队列长度变化较大时记录一次
-        size_t last_logged = last_logged_size_.load();
-        if (queue_size % 10 == 0 || (queue_size > 0 && queue_size > last_logged + 20)) {
-            std::ostringstream log_msg;
-            log_msg << "[QUEUE_MONITOR] Queue size: " << queue_size;
-            write_log(log_msg.str());
-            last_logged_size_.store(queue_size);
-        }
-        
-        // 调用底层 ThreadPool 的 enqueue
-        // 注意：这里需要访问 ThreadPool 的 enqueue，但它是 protected
-        // 所以我们需要通过其他方式，或者直接调用 pool_ 的方法
-        // 实际上我们需要重新实现这个逻辑
-        return pool_->enqueue(std::move(wrapped_fn));
-    }
-    
-    void shutdown() override {
-        pool_->shutdown();
-    }
-    
-    size_t get_queue_size() const {
-        return queue_count_.load();
-    }
-    
-private:
-    httplib::ThreadPool* pool_;
-    std::atomic<size_t> queue_count_{0};
-    std::atomic<size_t> last_logged_size_{0};
-};
-
-
 void start_pointcloud_server(const std::string& host, int port,DetectorFunc detector, bool* running) 
 {
     httplib::Server svr;
-    // 全局变量用于存储 MonitoredTaskQueue 指针，以便在请求处理中访问
-    static MonitoredTaskQueue* g_monitored_queue = nullptr;
     
-    // 自定义线程池配置：增加线程数和队列大小以处理高并发请求
-    // 默认 httplib 使用 max(8, CPU核心数-1) 个线程，但队列可能无限制
-    // 这里显式设置更大的线程池以应对 detector 函数可能较慢的情况
-    // 使用带监控的 TaskQueue 来跟踪队列长度
+    // 自定义线程池配置：支持每秒20次请求，每个请求处理6秒
+    // 理论需求：20 QPS × 6秒 = 120个并发线程
+    // 设置为150个线程以应对峰值和系统开销
+    // 队列大小设为0表示无限制，可以接收所有请求
     svr.new_task_queue = [&]() {
-        // 创建 ThreadPool 并包装在 MonitoredTaskQueue 中
-        auto pool = new httplib::ThreadPool(32, 0);
-        g_monitored_queue = new MonitoredTaskQueue(pool);
-        return g_monitored_queue;
+        // 创建 ThreadPool：150个线程，队列无限制
+        return new httplib::ThreadPool(150, 0);
     };
+    
+    // 设置超时时间：每个请求处理6秒，设置读写超时为8秒（留有余量）
+    // 默认读写超时只有5秒，不足以支持6秒的处理时间
+    svr.set_read_timeout(8, 0);   // 读取超时8秒
+    svr.set_write_timeout(8, 0);  // 写入超时8秒
     
     
     // Handle POST requests to /pointcloud/detect
     svr.Post("/pointcloud/detect", [detector](const httplib::Request& req, httplib::Response& res) 
     {
         write_log("Body: " + req.body);
-        
-        // 获取当前队列长度
-        size_t queue_size = 0;
-        if (g_monitored_queue) {
-            queue_size = g_monitored_queue->get_queue_size();
-        }
         
         // 生成时间戳
         std::time_t now = std::time(nullptr);
@@ -185,7 +129,6 @@ void start_pointcloud_server(const std::string& host, int port,DetectorFunc dete
         
         std::ostringstream log_msg;
         log_msg << "[REQUEST_RECEIVED] " << timestamp_str 
-                << " Queue size: " << queue_size
                 << " - Body: " << req.body;
         write_log(log_msg.str());
         
