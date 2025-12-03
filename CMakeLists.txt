@@ -79,8 +79,8 @@ cuda_add_library(pointpillar_core_inno SHARED
   	${CORE_FILES}
 )
 
-# Use old ABI for pointpillar_core_inno
-target_compile_definitions(pointpillar_core_inno PRIVATE _GLIBCXX_USE_CXX11_ABI=0)
+# Ensure pointpillar_core_inno builds after pointpillar_core to avoid file conflicts
+add_dependencies(pointpillar_core_inno pointpillar_core)
 
 target_link_libraries(pointpillar_core_inno
 	libnvinfer.so
@@ -105,6 +105,9 @@ target_link_libraries(pointpillar
 	nvdla_runtime
 )
 
+# Ensure pointpillar builds after pointpillar_core
+add_dependencies(pointpillar pointpillar_core)
+
 # Set RPATH for runtime library search
 set_target_properties(pointpillar PROPERTIES
 	INSTALL_RPATH "/usr/lib/aarch64-linux-gnu/nvidia"
@@ -126,18 +129,24 @@ cuda_add_executable(receiver-hsai
 target_include_directories(receiver-hsai 
     PRIVATE   
     ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/HesaiLidar_SDK_2.0/sdk
+    ${CMAKE_CURRENT_SOURCE_DIR}/libhv-1.3.3/build/include
     src/include
 )
 target_link_directories(receiver-hsai
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/HesaiLidar_SDK_2.0/build
+    ${CMAKE_CURRENT_SOURCE_DIR}/libhv-1.3.3/build/lib
 )
 
 target_link_libraries(receiver-hsai
 	pointpillar_core
 	nvdla_runtime
     hesai_sdk_wrapper
+    hv
 )
+
+# Ensure receiver-hsai builds after pointpillar_core
+add_dependencies(receiver-hsai pointpillar_core)
 
 # Set RPATH for runtime library search
 set_target_properties(receiver-hsai PROPERTIES
@@ -153,29 +162,30 @@ cuda_add_executable(receiver-inno
 	src/receiver-inno.cpp
     ${DETECT_FILES}
 )
-# Disable C++11 ABI to match inno_sdk_wrapper.so (compiled with old ABI)
-target_compile_definitions(receiver-inno PRIVATE _GLIBCXX_USE_CXX11_ABI=0)
 target_include_directories(receiver-inno 
     PRIVATE   
     ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/inno-lidar/apps/example
     ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/inno-lidar
+    ${CMAKE_CURRENT_SOURCE_DIR}/libhv-1.3.3/build/include
     src/include
 )
 target_link_directories(receiver-inno
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/inno-lidar/build_unix/apps/example
     ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/inno-lidar/lib
+    ${CMAKE_CURRENT_SOURCE_DIR}/libhv-1.3.3/build/lib
 )
 
 target_link_libraries(receiver-inno
 	pointpillar_core_inno
 	nvdla_runtime
     inno_sdk_wrapper
-    libinnolidarsdkclient.a
-    libinnolidarsdkcommon.a
-    libinnolidarutils.a
+    hv
     pthread
 )
+
+# Ensure receiver-inno builds after pointpillar_core_inno
+add_dependencies(receiver-inno pointpillar_core_inno)
 
 # Set RPATH for runtime library search
 set_target_properties(receiver-inno PROPERTIES
@@ -214,11 +224,9 @@ install(FILES
     OPTIONAL
 )
 
-# Install Inno SDK static libraries
+# Install Inno SDK wrapper library
 install(FILES 
-    ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/inno-lidar/lib/libinnolidarsdkclient.a
-    ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/inno-lidar/lib/libinnolidarsdkcommon.a
-    ${CMAKE_CURRENT_SOURCE_DIR}/Lidar/inno-lidar/lib/libinnolidarutils.a
+    ${CMAKE_CURRENT_SOURCE_DIR}/libhv-1.3.3/build/lib/libhv.so
     DESTINATION lib
     OPTIONAL
 )

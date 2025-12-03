@@ -12,7 +12,6 @@
 #include <limits>
 #include <functional>
 
-#include <httplib.h>
 #include <nlohmann/json.hpp>
 #include "common/check.hpp"
 #include "hsai_sdk_wrapper.h"

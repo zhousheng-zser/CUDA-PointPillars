@@ -12,7 +12,6 @@
 #include <limits>
 #include <functional>
 
-#include <httplib.h>
 #include <nlohmann/json.hpp>
 #include "common/check.hpp"
 #include "inno_sdk_wrapper.hpp"

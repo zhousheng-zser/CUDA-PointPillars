@@ -45,7 +45,8 @@ elseif(CMAKE_SYSTEM_NAME MATCHES "Windows" AND MINGW MATCHES "1")
 elseif(CMAKE_SYSTEM_NAME MATCHES "Darwin")
     add_definitions(-D__APPLE__)
 else()
-    add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
+    # Use new C++11 ABI (default) to match libhv-1.3.3
+    # Removed: add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
 endif()
 
 set(INNO_SDK_VERSION "")

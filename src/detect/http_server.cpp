@@ -1,6 +1,8 @@
 #include "http_server.hpp"
 #include "config.hpp"
-#include <httplib.h>
+#include <hv/HttpServer.h>
+#include <hv/HttpService.h>
+#include <hv/HttpClient.h>
 #include <nlohmann/json.hpp>
 #include <iostream>
 #include <exception>
@@ -15,6 +17,7 @@
 #include <mutex>
 
 using json = nlohmann::json;
+using namespace hv;
 
 namespace http_server {
 
@@ -90,29 +93,24 @@ static void write_log(const std::string& message) {
     // std::cout << message << std::endl;
 }
 
-void start_pointcloud_server(const std::string& host, int port,DetectorFunc detector, bool* running) 
+void start_pointcloud_server(const std::string& host, int port, DetectorFunc detector, bool* running) 
 {
-    httplib::Server svr;
+    HttpService service;
+    HttpServer server(&service);
     
-    // 自定义线程池配置：支持每秒20次请求，每个请求处理6秒
+    // 设置线程数：支持每秒20次请求，每个请求处理6秒
     // 理论需求：20 QPS × 6秒 = 120个并发线程
     // 设置为150个线程以应对峰值和系统开销
-    // 队列大小设为0表示无限制，可以接收所有请求
-    svr.new_task_queue = [&]() {
-        // 创建 ThreadPool：150个线程，队列无限制
-        return new httplib::ThreadPool(150, 0);
-    };
+    server.setThreadNum(150);
     
     // 设置超时时间：每个请求处理6秒，设置读写超时为8秒（留有余量）
-    // 默认读写超时只有5秒，不足以支持6秒的处理时间
-    svr.set_read_timeout(8, 0);   // 读取超时8秒
-    svr.set_write_timeout(8, 0);  // 写入超时8秒
-    
+    // libhv 默认超时较长，但我们可以通过 keepalive_timeout 设置
+    service.keepalive_timeout = 8000;  // 8秒，单位：毫秒
     
     // Handle POST requests to /pointcloud/detect
-    svr.Post("/pointcloud/detect", [detector](const httplib::Request& req, httplib::Response& res) 
-    {
-        write_log("Body: " + req.body);
+    service.POST("/pointcloud/detect", [detector](HttpRequest* req, HttpResponse* resp) -> int {
+        std::string body = req->body;
+        write_log("Body: " + body);
         
         // 生成时间戳
         std::time_t now = std::time(nullptr);
@@ -129,12 +127,12 @@ void start_pointcloud_server(const std::string& host, int port,DetectorFunc dete
         
         std::ostringstream log_msg;
         log_msg << "[REQUEST_RECEIVED] " << timestamp_str 
-                << " - Body: " << req.body;
+                << " - Body: " << body;
         write_log(log_msg.str());
         
         try {
             // Parse JSON request
-            json req_data = json::parse(req.body);
+            json req_data = json::parse(body);
             
             // Validate request_type
             if (!req_data.contains("req_type") || req_data["req_type"] != "get_point_cloud_detect_request") {
@@ -146,8 +144,9 @@ void start_pointcloud_server(const std::string& host, int port,DetectorFunc dete
                     }},
                     {"ret_body", json::object()}
                 };
-                res.set_content(error_resp.dump(), "application/json");
-                return;
+                resp->SetBody(error_resp.dump());
+                resp->SetContentType("application/json");
+                return HTTP_STATUS_OK;
             }
             
             // Extract req_body
@@ -160,8 +159,9 @@ void start_pointcloud_server(const std::string& host, int port,DetectorFunc dete
                     }},
                     {"ret_body", json::object()}
                 };
-                res.set_content(error_resp.dump(), "application/json");
-                return;
+                resp->SetBody(error_resp.dump());
+                resp->SetContentType("application/json");
+                return HTTP_STATUS_OK;
             }
             
             json req_body = req_data["req_body"];
@@ -177,8 +177,9 @@ void start_pointcloud_server(const std::string& host, int port,DetectorFunc dete
                     }},
                     {"ret_body", json::object()}
                 };
-                res.set_content(error_resp.dump(), "application/json");
-                return;
+                resp->SetBody(error_resp.dump());
+                resp->SetContentType("application/json");
+                return HTTP_STATUS_OK;
             }
             
             //std::cout << "unique_id: " << unique_id << ", road_id: " << road_id << std::endl;
@@ -222,7 +223,9 @@ void start_pointcloud_server(const std::string& host, int port,DetectorFunc dete
                 }}
             };
             write_log(success_resp.dump());
-            res.set_content(success_resp.dump(), "application/json");
+            resp->SetBody(success_resp.dump());
+            resp->SetContentType("application/json");
+            return HTTP_STATUS_OK;
             
         } catch (const json::parse_error& e) {
             json error_resp = {
@@ -233,10 +236,12 @@ void start_pointcloud_server(const std::string& host, int port,DetectorFunc dete
                 }},
                 {"ret_body", json::object()}
             };
-            res.set_content(error_resp.dump(), "application/json");
+            resp->SetBody(error_resp.dump());
+            resp->SetContentType("application/json");
+            return HTTP_STATUS_OK;
         } catch (const std::exception& e) {
             std::ostringstream forward_msg;
-            forward_msg <<"Error:" << req.body << " Error processing request: " << e.what()  ;
+            forward_msg << "Error:" << body << " Error processing request: " << e.what();
             write_log(forward_msg.str());
             json error_resp = {
                 {"ret_type", "get_point_cloud_detect_response"},
@@ -246,15 +251,21 @@ void start_pointcloud_server(const std::string& host, int port,DetectorFunc dete
                 }},
                 {"ret_body", json::object()}
             };
-            res.set_content(error_resp.dump(), "application/json");
+            resp->SetBody(error_resp.dump());
+            resp->SetContentType("application/json");
+            return HTTP_STATUS_OK;
         }
-    }
-    );
+    });
+    
+    // 设置服务器地址和端口
+    server.setHost(host.c_str());
+    server.setPort(port);
     
     std::cout << "[INFO] Starting HTTP server on " << host << ":" << port << std::endl;
     
     try {
-        svr.listen(host.c_str(), port);
+        // 运行服务器（阻塞）
+        server.run();
     } catch (const std::exception& e) {
         std::cerr << "HTTP Server error: " << e.what() << std::endl;
         if (running) {
@@ -269,7 +280,7 @@ void async_forward_to_other_service(const std::string& unique_id,
                                    const tracking::MultiObjectTracker::BestResult& best,
                                    std::vector<std::array<float, 4>> &point_cloud,
                                    std::vector<std::array<float, 4>> &points_max_car,
-                                   int road_id ,const std::string &lidar_tpye) {
+                                   int road_id, const std::string &lidar_tpye) {
     std::thread([unique_id, best, point_cloud = std::move(point_cloud), points_max_car = std::move(points_max_car), road_id, lidar_tpye]() mutable {
         nlohmann::json payload;
         double factor = 1000;
@@ -314,33 +325,35 @@ void async_forward_to_other_service(const std::string& unique_id,
         for (int attempt = 0; attempt < max_attempts; ++attempt) {
             const bool is_last_attempt = (attempt + 1) == max_attempts;
             try {
-                httplib::Client client(web_ip.c_str(), web_port);
-                client.set_connection_timeout(timeout_sec, 0);
-                client.set_read_timeout(timeout_sec, 0);
-                client.set_write_timeout(timeout_sec, 0);
+                HttpClient client(web_ip.c_str(), web_port);
+                client.setTimeout(timeout_sec);
 
-                auto res = client.Post("/api/ocm?type=3", body, "application/json");
-                if (res) {
+                HttpRequest req;
+                req.method = HTTP_POST;
+                req.url = web_url + "/api/ocm?type=3";
+                req.SetBody(body);
+                req.SetHeader("Content-Type", "application/json");
+
+                HttpResponse resp;
+                int ret = client.send(&req, &resp);
+                if (ret == 0) {
                     std::ostringstream forward_msg;
                     forward_msg << "[FORWARD] Sent to " << web_url
-                                << " (unique_id=" << unique_id << ") - status: " << res->status
-                                << " body: " << res->body;
+                                << " (unique_id=" << unique_id << ") - status: " << resp.status_code
+                                << " body: " << resp.body;
                     write_log(forward_msg.str());
                     break;
                 } else {
-                    auto err = res.error();
                     if (!is_last_attempt) {
                         std::ostringstream timeout_msg;
                         timeout_msg << "[FORWARD] Timeout sending to " << web_url
                                      << " (unique_id=" << unique_id << ") - retrying ("
-                                     << (max_attempts - attempt - 1) << " attempts left) - "
-                                     << httplib::to_string(err);
+                                     << (max_attempts - attempt - 1) << " attempts left)";
                         write_log(timeout_msg.str());
                     } else {
                         std::ostringstream timeout_msg2;
                         timeout_msg2 << "[FORWARD] Timeout sending to " << web_url
-                                      << " (unique_id=" << unique_id << ") - max retries reached - "
-                                      << httplib::to_string(err);
+                                      << " (unique_id=" << unique_id << ") - max retries reached";
                         write_log(timeout_msg2.str());
                     }
                 }
@@ -363,4 +376,3 @@ void async_forward_to_other_service(const std::string& unique_id,
 }
 
 } // namespace http_server
-
