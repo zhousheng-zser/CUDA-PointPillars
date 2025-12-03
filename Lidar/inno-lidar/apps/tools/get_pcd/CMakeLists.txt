@@ -1,7 +1,7 @@
 project(get_pcd)
 cmake_minimum_required( VERSION 3.0 )
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/../../../build/")
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/../../../build_script/")
 include(${CMAKE_MODULE_PATH}inno_lidar_base.cmake)
 
 set(SOURCES_GET_PCD get_pcd.cpp)

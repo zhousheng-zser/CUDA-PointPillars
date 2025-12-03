@@ -1,7 +1,7 @@
 project(innolidarutils)
 cmake_minimum_required(VERSION 3.0)
 
-include(${PROJECT_SOURCE_DIR}/../../build/inno_lidar_base.cmake)
+include(${PROJECT_SOURCE_DIR}/../../build_script/inno_lidar_base.cmake)
 
 if(NOT "${ARCH_TAG}" STREQUAL "-arm" OR NOT DEFINED ARCH_TAG)
     add_definitions(-DHAVE_SSE42)

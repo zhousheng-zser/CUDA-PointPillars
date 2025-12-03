@@ -1,7 +1,7 @@
 project(innolidarsdkclient)
 cmake_minimum_required(VERSION 3.0)
 
-include(${PROJECT_SOURCE_DIR}/../../build/inno_lidar_base.cmake)
+include(${PROJECT_SOURCE_DIR}/../../build_script/inno_lidar_base.cmake)
 
 
 aux_source_directory(. DIR_SRCS)
