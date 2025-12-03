@@ -272,13 +272,13 @@ void point_cloud_detect() {
                 const int lane_count = std::max(1, get_config().lane_count);
                 const float total_width = range_x * 2.0f;
 
-                int road_id = 1;
+                float road_id = 1.0;
                 if (lane_count > 1 && total_width > 0.0f) {
-                    const float lane_span = total_width / static_cast<float>(lane_count);
+                    const float lane_span = total_width / static_cast<float>(lane_count); 
                     float best_dist = std::numeric_limits<float>::max();
-                    int best_lane = 1;
-                    for (int lane = 1; lane <= lane_count; ++lane) {
-                        const float lane_center = max_x - (lane - 1 + 0.5f) * lane_span;
+                    float best_lane = 1;
+                    for (float lane = 1; lane <= lane_count; lane+=0.5) {
+                        const float lane_center = max_x - (lane - 0.5f) * lane_span;
                         const float dist = std::fabs(box.x - lane_center);
                         if (dist < best_dist) {
                             best_dist = dist;
@@ -293,7 +293,7 @@ void point_cloud_detect() {
                 // y-前后 x-左右 z-上下
                 //车前下点作为车中心
                 detections_frame.emplace_back(
-                     box.y-0.5*box.w, box.x, box.z, box.w, box.l, box.h, box.rt, static_cast<float>(road_id), box.score);
+                     box.y-0.5*box.w, box.x, box.z, box.w, box.l, box.h, box.rt, road_id, box.score);
                 car_points_frame.push_back(std::move(box.points));
             }
 

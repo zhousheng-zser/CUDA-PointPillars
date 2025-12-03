@@ -734,7 +734,7 @@ bool MultiObjectTracker::set_unique_id_for_closest_vehicle(const std::string& un
         
         BBox3D val = trk.get_last_observation();
         
-        if (std::round(val.line()) != road_id) {
+        if ( std::fabs(val.line() - road_id) >= 1.0f) {
             continue;
         }
         
@@ -794,7 +794,7 @@ bool MultiObjectTracker::set_unique_id_for_closest_vehicle(const std::string& un
 }
 
 float MultiObjectTracker::euclidean_distance(const BBox3D& b1, const BBox3D& b2) const {
-    if (b1.line() != b2.line()) {
+    if (std::fabs(b1.line() - b2.line()) >= 1.0f) {
         return 99999999.0f;
     }
     float dx = b1.x() - b2.x();
@@ -813,7 +813,7 @@ float MultiObjectTracker::bbox3d_iou(const BBox3D& b1, const BBox3D& b2) const {
     // x是最前端，中心应该在 x + l/2
     // y是宽的中心，保持不变
     // z是最下端，中心应该在 z + h/2
-    if (b1.line() != b2.line()) {
+    if (std::fabs(b1.line() - b2.line()) >= 1.0f) {
         return 0.0f;
     }
     float center1_x = b1.x() + b1.l() * 0.5f;
