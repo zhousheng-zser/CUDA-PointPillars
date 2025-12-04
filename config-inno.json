@@ -1,56 +1,56 @@
 {
-    "center_x": 32.8,
-    "center_y": 4.6,
-    "center_z": -1.8,
-    "range_x": 8,
-    "range_y": 25,
-    "range_z": 6,
-    "ry": 0.0,
-    "lane_count": 4,
-    "lidar_model": "../model/pointpillar.plan",
-    "lidar": {
-      "roll": -4.4,
-      "pitch": -98.2,
-      "yaw": -71.9,
-      "x": 38.400,
-      "y": -20.000,
-      "z": 5.300,
-      "ip_address": "10.168.1.69"
-    },
-    "web_service": {
-      "ip": "10.168.1.66",
-      "port": 18874,
-      "timeout_sec": 15
-    },
-    "tracking": {
-      "min_distance": 8.0
-    },
-    "detection": {
-      "score_threshold": 0.15
-    },
-    "draw": {
-      "point_cloud_draw_step": 0.1
-    },
-    "ground_plane": {
-      "a":  0.004234,
-      "b":  0.009570,
-      "c":  0.999945,
-      "d":  3.852301
-    },
-    "line1": {
-      "start_x": 45.0,
-      "start_y": 6.0,
-      "start_z": -3.5,
-      "end_x": 0.0,
-      "end_y": 6.0,
-      "end_z": -3.5
-    },
-    "line2": {
-      "start_x": 45.0,
-      "start_y": -14.0,
-      "start_z": -3.5,
-      "end_x": 0.0,
-      "end_y": -14.0,
-      "end_z": -3.5
-    }
+  "center_x": 32.8,
+  "center_y": 4.6,
+  "center_z": -1.8,
+  "range_x": 8,
+  "range_y": 25,
+  "range_z": 6,
+  "ry": 0.0,
+  "lane_count": 4,
+  "lidar_model": "../model/pointpillar.plan",
+  "lidar": {
+    "roll": 2.1,
+    "pitch": -100.2,
+    "yaw": -90.0,
+    "x": 38.400,
+    "y": -23.000,
+    "z": 4.300,
+    "ip_address": "10.168.1.62"
+  },
+  "web_service": {
+    "ip": "10.168.1.66",
+    "port": 18874,
+    "timeout_sec": 15
+  },
+  "tracking": {
+    "min_distance": 8.0
+  },
+  "detection": {
+    "score_threshold": 0.15
+  },
+  "draw": {
+    "point_cloud_draw_step": 0.1
+  },
+  "ground_plane": {
+    "a":  0.012734,
+    "b":  0.000476,
+    "c":  -0.999919,
+    "d":  -4.815825
+},
+  "line1": {
+    "start_x": 45.0,
+    "start_y": -11.0,
+    "start_z": -3.5,
+    "end_x": 0.0,
+    "end_y": -11.0,
+    "end_z": -3.5
+  },
+  "line2": {
+    "start_x": 45.0,
+    "start_y": -19.0,
+    "start_z": -3.5,
+    "end_x": 0.0,
+    "end_y": -19.0,
+    "end_z": -3.5
   }
+}

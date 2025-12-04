@@ -137,7 +137,7 @@ static inline void drawParallelLinesOnBottomFace(
         std::vector<nvtype::Float4> line_points;
         interpolateEdge(x_point, x_end, edge_step, line_points);
         for (const auto &sp : line_points) {
-            out_points.push_back({sp.x, sp.y, sp.z, -2.0f});
+            out_points.push_back({sp.x, sp.y, sp.z, -4.0f});
         }
         
         const float segment_interval = 1.0f;
@@ -153,7 +153,7 @@ static inline void drawParallelLinesOnBottomFace(
             std::vector<nvtype::Float4> seg_line_points;
             interpolateEdge(line_start, line_end, edge_step, seg_line_points);
             for (const auto &sp : seg_line_points) {
-                out_points.push_back({sp.x, sp.y, sp.z, -2.0f});
+                out_points.push_back({sp.x, sp.y, sp.z, -4.0f});
             }
         }
     }
