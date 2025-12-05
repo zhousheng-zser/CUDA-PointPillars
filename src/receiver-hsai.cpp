@@ -343,13 +343,7 @@ int main(int argc, char** argv) {
     
     // Construct MultiObjectTracker after config is initialized
     // Config is automatically initialized when getInstance() is first called
-    mot = new tracking::MultiObjectTracker(0.75f, 20,
-        get_config().line1_config.start_x,
-        get_config().line1_config.start_y,
-        get_config().line1_config.start_z,
-        get_config().line1_config.end_x,
-        get_config().line1_config.end_y,
-        get_config().line1_config.end_z,
+    mot = new tracking::MultiObjectTracker(0.75f, 5,
         tracking::DimensionStrategy::TRIMMED_MAX);
     
     pool = new thread_pool(1);

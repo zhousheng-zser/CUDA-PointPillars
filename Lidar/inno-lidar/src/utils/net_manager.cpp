@@ -109,7 +109,7 @@ int NetManager::http_get(const char *url,
   }
 
   uint16_t port_connect = port == 0 ? port_ : port;
-  inno_log_info("Requesting %s from %s:%d", url, ip_, port_connect);
+  //inno_log_info("Requesting %s from %s:%d", url, ip_, port_connect);
   int fd = get_connection(ip_, port_connect, timeout_sec);
   if (fd < 0) {
     inno_log_error_errno("Error opening HTTP connection (%s:%d)",

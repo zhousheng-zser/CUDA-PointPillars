@@ -119,8 +119,6 @@ private:
 class MultiObjectTracker {
 public:
     MultiObjectTracker(float iou_threshold = 0.7f, int max_age = 5,
-                      float start_x = 0.0f, float start_y = 0.0f, float start_z = 0.0f,
-                      float end_x = 0.0f, float end_y = 0.0f, float end_z = 0.0f,
                       DimensionStrategy dimension_strategy = DimensionStrategy::TRIMMED_MAX);
     
     void update(std::vector<BBox3D>& detections, std::vector<std::vector<std::array<float, 4>>> &car_points_frame, uint64_t timestamp ,std::vector<float> &points);
@@ -159,7 +157,6 @@ private:
     int next_id_;
     float iou_threshold_;
     int max_age_;
-    Line line_;
     DimensionStrategy dimension_strategy_;  // Strategy for getting dimensions
     mutable std::mutex trackers_mutex_;  // Mutex to protect trackers_ and trackers_id_
     

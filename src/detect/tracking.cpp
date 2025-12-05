@@ -457,11 +457,8 @@ float Tracker::get_dimension_value(const std::vector<float>& values, DimensionSt
 // ==================== MultiObjectTracker Implementation ====================
 
 MultiObjectTracker::MultiObjectTracker(float iou_threshold, int max_age,
-                                       float start_x, float start_y, float start_z,
-                                       float end_x, float end_y, float end_z,
                                        DimensionStrategy dimension_strategy)
     : next_id_(0), iou_threshold_(iou_threshold), max_age_(max_age),
-      line_(start_x, start_y, start_z, end_x, end_y, end_z),
       dimension_strategy_(dimension_strategy) {
 }
 
@@ -710,13 +707,14 @@ bool MultiObjectTracker::set_unique_id_for_closest_vehicle(const std::string& un
     int best_idx = -1;
     float min_distance = get_config().min_distance;  // 最多离多少米
     
-    // Line parameters
-    float line_start_x = line_.start_x;
-    float line_start_y = line_.start_y;
-    float line_start_z = line_.start_z;
-    float line_end_x = line_.end_x;
-    float line_end_y = line_.end_y;
-    float line_end_z = line_.end_z;
+    // Line parameters from config
+    const auto& line1_config = get_config().line1_config;
+    float line_start_x = line1_config.start_x;
+    float line_start_y = line1_config.start_y;
+    float line_start_z = line1_config.start_z;
+    float line_end_x = line1_config.end_x;
+    float line_end_y = line1_config.end_y;
+    float line_end_z = line1_config.end_z;
     int n = trackers_.size(); 
     for (size_t idx = 0; idx < n ; ++idx) {
         // Skip if unique_id has already been set

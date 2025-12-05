@@ -23,7 +23,7 @@
     "timeout_sec": 15
   },
   "tracking": {
-    "min_distance": 8.0
+    "min_distance": 6.0
   },
   "detection": {
     "score_threshold": 0.15
@@ -39,10 +39,10 @@
 },
   "line1": {
     "start_x": 45.0,
-    "start_y": -11.0,
+    "start_y": -9.0,
     "start_z": -3.5,
     "end_x": 0.0,
-    "end_y": -11.0,
+    "end_y": -9.0,
     "end_z": -3.5
   },
   "line2": {

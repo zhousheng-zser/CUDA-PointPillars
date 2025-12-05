@@ -158,8 +158,8 @@ void ResourceStats::show() {
   buf_extra[0] = 0;
   // RW-MARK ?
   get_extra_info_(buf_extra, sizeof(buf_extra), diff_s);
-  inno_log_info("%s pid=%d uptime=%.2fs, #RESOURCE_STATS#%s %s", lidar_->get_name(), getpid(),
-                (now_ms - start_time_ms_) / 1000.0, buf, buf_extra);
+  // inno_log_info("%s pid=%d uptime=%.2fs, #RESOURCE_STATS#%s %s", lidar_->get_name(), getpid(),
+  //               (now_ms - start_time_ms_) / 1000.0, buf, buf_extra);
   {
     std::unique_lock<std::mutex> lk(mutex_);
     strncpy(last_output_stats_buffer_, buf, sizeof(last_output_stats_buffer_));

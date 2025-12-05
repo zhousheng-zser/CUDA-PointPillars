@@ -7,6 +7,9 @@
 #include <thread>
 #include <mutex>
 #include <chrono>
+// #include <ctime>
+// #include <iomanip>
+// #include <sstream>
 #include <string>
 #include <algorithm>
 #include <limits>
@@ -214,11 +217,32 @@ void detect_task_lidar(std::vector<float> &points, std::vector<detect::Processin
     // 暂时不用在这儿画框
     // if(cnt_zser%200==0)
     // {
-    //     auto current_time = std::chrono::system_clock::now();
-    //     auto current_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-    //                             current_time.time_since_epoch())
-    //                             .count();
-    //     std::string save_pcd_name ="../train/" + std::to_string(current_ms) + ".pcd";
+        // auto current_time = std::chrono::system_clock::now();
+        // auto current_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        //                         current_time.time_since_epoch())
+        //                         .count();
+        // std::string save_pcd_name = []{
+        //     // std::chrono::system_clock::now() 返回的是 time_point，只包含从1970-01-01开始的时长
+        //     // 要获取年月日，必须转换为日历时间（time_t -> tm结构体）
+        //     auto now = std::chrono::system_clock::now();
+        //     auto time_t = std::chrono::system_clock::to_time_t(now);
+        //     std::tm tm = *std::localtime(&time_t);
+            
+        //     // 获取毫秒部分（time_point 可以精确到毫秒）
+        //     auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(
+        //         now.time_since_epoch()).count() % 1000;
+            
+        //     std::ostringstream filename_stream;
+        //     filename_stream << "../train/" 
+        //                     << std::setfill('0') << std::setw(4) << (1900 + tm.tm_year) << "-"
+        //                     << std::setfill('0') << std::setw(2) << (tm.tm_mon + 1) << "-"
+        //                     << std::setfill('0') << std::setw(2) << tm.tm_mday << "_"
+        //                     << std::setfill('0') << std::setw(2) << tm.tm_hour << "_"
+        //                     << std::setfill('0') << std::setw(2) << tm.tm_min << "_"
+        //                     << std::setfill('0') << std::setw(2) << tm.tm_sec << "_"
+        //                     << std::setfill('0') << std::setw(3) << millis << ".pcd";  
+        //     return filename_stream.str();
+        // }();
     // }
     // {// roi框
     //     const float cx = get_config().center_x;
@@ -231,7 +255,7 @@ void detect_task_lidar(std::vector<float> &points, std::vector<detect::Processin
     //     bboxes.push_back(range_box);
     // }
     // std::vector<std::array<float, 4>> rendered_points;
-    // detect::SaveBoxesAsPCD(bboxes, points_filtered.data(), points_filtered.size()/4, "", get_config().point_cloud_draw_step, rendered_points);
+    // detect::SaveBoxesAsPCD(bboxes_result, points_filtered.data(), points_filtered.size()/4, save_pcd_name, get_config().point_cloud_draw_step, rendered_points);
     // cnt_zser++;
 }
 
@@ -343,13 +367,7 @@ int main(int argc, char** argv) {
     
     // Construct MultiObjectTracker after config is initialized
     // Config is automatically initialized when getInstance() is first called
-    mot = new tracking::MultiObjectTracker(0.75f, 20,
-        get_config().line1_config.start_x,
-        get_config().line1_config.start_y,
-        get_config().line1_config.start_z,
-        get_config().line1_config.end_x,
-        get_config().line1_config.end_y,
-        get_config().line1_config.end_z,
+    mot = new tracking::MultiObjectTracker(0.75f, 5,
         tracking::DimensionStrategy::TRIMMED_MAX);
     
     pool = new thread_pool(1);
