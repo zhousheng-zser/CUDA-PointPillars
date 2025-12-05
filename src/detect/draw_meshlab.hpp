@@ -108,7 +108,7 @@ inline bool save_pcd_file(const std::string &file_name,
  * Draw parallel lines on the bottom face of the last bounding box
  * Lines are drawn along x direction, spaced 5 meters apart in y direction
  */
-static inline void drawParallelLinesOnBottomFace(
+static inline void drawParallelLinesOnBottomFace_l(
     const std::array<nvtype::Float3, 8> &cs,
     float edge_step,
     std::vector<std::array<float, 4>> &out_points) {
@@ -121,8 +121,8 @@ static inline void drawParallelLinesOnBottomFace(
     const float dy = bottom_right.y - bottom_left.y;
     const float x_length = sqrtf(dx * dx + dy * dy);
     
-    const float dy_perp = top_left.x - bottom_left.x;
-    const float dx_perp = top_left.y - bottom_left.y;
+    const float dy_perp = top_left.y - bottom_left.y;
+    const float dx_perp = top_left.x - bottom_left.x;
     const float y_length = sqrtf(dx_perp * dx_perp + dy_perp * dy_perp);
     
     if (y_length > 1e-6f && x_length > 1e-6f) {
@@ -158,6 +158,63 @@ static inline void drawParallelLinesOnBottomFace(
         }
     }
 }
+
+static inline void drawParallelLinesOnBottomFace_w(
+    const std::array<nvtype::Float3, 8> &cs,
+    float edge_step,
+    std::vector<std::array<float, 4>> &out_points) {
+        
+    const nvtype::Float3 &bottom_left = cs[0];
+    const nvtype::Float3 &bottom_right = cs[1];
+    const nvtype::Float3 &top_left = cs[3];
+    
+    const float dx = bottom_right.x - bottom_left.x;
+    const float dy = bottom_right.y - bottom_left.y;
+    const float x_length = sqrtf(dx * dx + dy * dy);
+    
+    const float dy_perp = top_left.y - bottom_left.y;
+    const float dx_perp = top_left.x - bottom_left.x;
+    const float y_length = sqrtf(dx_perp * dx_perp + dy_perp * dy_perp);
+    
+    if (y_length > 1e-6f && x_length > 1e-6f) {
+        // 使用垂直于底边的方向画线（与 drawParallelLinesOnBottomFace_l 垂直）
+        const float norm_dx = dx_perp / y_length;  // 垂直方向单位向量
+        const float norm_dy = dy_perp / y_length;
+        const float fixed_x = bottom_left.x;
+        const float fixed_z = bottom_left.z;
+        
+        // nvtype::Float3 x_point(bottom_left.x, fixed_y, fixed_z);
+        // nvtype::Float3 x_end(x_point.x + norm_dx * x_length, fixed_y, fixed_z);
+        nvtype::Float3 x_point(fixed_x, bottom_left.y, fixed_z);
+        nvtype::Float3 x_end(fixed_x, bottom_left.y+ norm_dy * y_length, fixed_z);
+        
+        std::vector<nvtype::Float4> line_points;
+        interpolateEdge(x_point, x_end, edge_step, line_points);
+        for (const auto &sp : line_points) {
+            out_points.push_back({sp.x, sp.y, sp.z, -4.0f});
+        }
+        
+        //const float segment_interval = 1.0f;
+        //int num_segments = static_cast<int>(y_length / segment_interval);
+        int num_segments = get_config().lane_count;
+        const float segment_interval =  x_length / num_segments ;
+        
+        for (int seg = 1; seg <= num_segments; ++seg) {
+            float x_offset = static_cast<float>(seg) * segment_interval;
+            if (x_offset > x_length) x_offset = x_length;
+            
+            nvtype::Float3 line_start(x_point.x + x_offset, x_point.y, x_point.z);
+            nvtype::Float3 line_end(x_end.x + x_offset, x_end.y, x_end.z);
+            
+            std::vector<nvtype::Float4> seg_line_points;
+            interpolateEdge(line_start, line_end, edge_step, seg_line_points);
+            for (const auto &sp : seg_line_points) {
+                out_points.push_back({sp.x, sp.y, sp.z, -4.0f});
+            }
+        }
+    }
+}
+
 
 /**
  * Save point cloud with bounding boxes to a PCD file
@@ -203,7 +260,8 @@ inline bool SaveBoxesAsPCD(const std::vector<detect::ProcessingBox> &boxes,
             intensity = -1.0f ;
             
             // 在最后一个框的底沿画平行线段
-            drawParallelLinesOnBottomFace(cs, edge_step, out_points);
+            drawParallelLinesOnBottomFace_l(cs, edge_step, out_points);
+            drawParallelLinesOnBottomFace_w(cs, edge_step, out_points);
         }
         for (const auto &q : edge_points) {
             out_points.push_back({q.x, q.y, q.z, intensity});
