@@ -36,7 +36,7 @@ sh tool/evaluate_kitti_val.sh
 
 ### Setup Runtime Environment
 
-- Nvidia Jetson Orin + CUDA 11.4 + cuDNN 8.9.0 + TensorRT 8.6.11
+- Nvidia Jetson Orin + CUDA(11.8) + cuDNN(8.9.4.25-1+cuda12.2)  + TensorRT(8.6.2.3-1+cuda12.2)
 
 ## Compile && Run
 

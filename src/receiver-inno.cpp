@@ -158,14 +158,14 @@ http_server::DetectionResult handle_detection_request(const std::string& unique_
     tracking::MultiObjectTracker::BestResult best={0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f};
     std::vector<std::array<float, 4>> rendered_points;
     bool flag =mot->set_unique_id_for_closest_vehicle(unique_id, road_id,rendered_points); //去设置unique_id
-    if( !flag )
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(150));  //再给一次机会 
-        flag = mot->set_unique_id_for_closest_vehicle(unique_id, road_id,rendered_points);
-    }
+    // if( !flag )
+    // {
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(150));  //再给一次机会 
+    //     flag = mot->set_unique_id_for_closest_vehicle(unique_id, road_id,rendered_points);
+    // }
     if(flag)
     {
-        int T = 30;   // 30*200ms = 6s
+        int T = 10;   // 10*200ms = 2s
         while(mot->result_map_[unique_id].status_code != 1 && T)
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
@@ -300,10 +300,15 @@ void point_cloud_detect() {
                     const float lane_span = total_width / static_cast<float>(lane_count); 
                     float best_dist = std::numeric_limits<float>::max();
                     float best_lane = 1;
-                    for (float lane = 1; lane <= lane_count; lane+=0.5) {
+                    int cnt = 0;
+                    for (float lane = 1; lane <= lane_count; lane+=0.5, cnt++) {
                         const float lane_center = max_x - (lane - 0.5f) * lane_span;
                         const float dist = std::fabs(box.x - lane_center);
-                        if (dist < best_dist) {
+                        if (cnt%2==0 && dist < best_dist) {
+                            best_dist = dist;
+                            best_lane = lane;
+                        }
+                        else if(cnt%2==1 && dist < 0.5 && dist < best_dist) {
                             best_dist = dist;
                             best_lane = lane;
                         }

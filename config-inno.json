@@ -1,7 +1,7 @@
 {
   "center_x": 32.8,
   "center_y": 4.6,
-  "center_z": -1.8,
+  "center_z": -2.7,
   "range_x": 8,
   "range_y": 25,
   "range_z": 6,
@@ -26,31 +26,31 @@
     "min_distance": 6.0
   },
   "detection": {
-    "score_threshold": 0.15
+    "score_threshold": 0.1
   },
   "draw": {
     "point_cloud_draw_step": 0.1
   },
   "ground_plane": {
-    "a":  0.012734,
-    "b":  0.000476,
-    "c":  -0.999919,
-    "d":  -4.815825
-},
+    "a":  -0.013322,
+    "b":  0.010614,
+    "c":  0.999855,
+    "d":  5.081007
+  },
   "line1": {
     "start_x": 45.0,
-    "start_y": -9.0,
-    "start_z": -3.5,
+    "start_y": -7.0,
+    "start_z": -5.0,
     "end_x": 0.0,
-    "end_y": -9.0,
-    "end_z": -3.5
+    "end_y": -7.0,
+    "end_z": -5.0
   },
   "line2": {
     "start_x": 45.0,
     "start_y": -19.0,
-    "start_z": -3.5,
+    "start_z": -5.0,
     "end_x": 0.0,
     "end_y": -19.0,
-    "end_z": -3.5
+    "end_z": -5.0
   }
 }

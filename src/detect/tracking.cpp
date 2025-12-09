@@ -692,7 +692,6 @@ static float point_to_line_distance(float px, float py, float pz,
 }
 
 bool MultiObjectTracker::set_unique_id_for_closest_vehicle(const std::string& unique_id, int road_id, std::vector<std::array<float, 4>> &rendered_points) {
-    std::lock_guard<std::mutex> lock(trackers_mutex_);
     std::vector<detect::ProcessingBox> bboxes ;
     const float cx = get_config().center_x;
     const float cy = get_config().center_y;
@@ -702,7 +701,7 @@ bool MultiObjectTracker::set_unique_id_for_closest_vehicle(const std::string& un
     const float h  = get_config().range_z;
     detect::ProcessingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
     bboxes.push_back(range_box);
-
+    
     // detect::SaveBoxesAsPCD({}, points_filtered.data(), points_filtered.size()/4, "", get_config().point_cloud_draw_step, rendered_points);
     int best_idx = -1;
     float min_distance = get_config().min_distance;  // 最多离多少米
@@ -715,17 +714,15 @@ bool MultiObjectTracker::set_unique_id_for_closest_vehicle(const std::string& un
     float line_end_x = line1_config.end_x;
     float line_end_y = line1_config.end_y;
     float line_end_z = line1_config.end_z;
+
+    std::lock_guard<std::mutex> lock(trackers_mutex_);
     int n = trackers_.size(); 
     for (size_t idx = 0; idx < n ; ++idx) {
         // Skip if unique_id has already been set
         if (!trackers_id_[idx].empty()) {
             continue;
         }
-        
         const auto& trk = trackers_[idx];
-        
-        // Only consider trackers that were updated from current Boxes_now
-        // time_since_update_ == 0 means the tracker was just updated/created in current frame
         if (trk.get_time_since_update() != 0  ) { //只要更新了的
             continue;
         }
@@ -773,7 +770,7 @@ bool MultiObjectTracker::set_unique_id_for_closest_vehicle(const std::string& un
     //     std::swap(bboxes[0], bboxes[1]);  //让ROI 放后面
     // }
     
-    detect::SaveBoxesAsPCD(bboxes, points_now.data(), points_now.size()/4, "", 0.05f, rendered_points);
+    detect::SaveBoxesAsPCD(bboxes, points_now.data(), points_now.size()/4, "", get_config().point_cloud_draw_step, rendered_points);
 
     BestResult best_result;
     best_result.length = trk.get_length(dimension_strategy_);

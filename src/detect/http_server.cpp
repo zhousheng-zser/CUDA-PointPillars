@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <mutex>
+#include <chrono>
 
 using json = nlohmann::json;
 using namespace hv;
@@ -64,17 +65,22 @@ static void ensure_log_file_open() {
 }
 
 // 全局日志函数：将内容追加到按小时命名的日志文件中
-static void write_log(const std::string& message) {
+static std::string write_log(const std::string& message) {
     std::lock_guard<std::mutex> lock(g_log_mutex);
     
-    // 获取当前时间
-    std::time_t now = std::time(nullptr);
-    std::tm* timeinfo = std::localtime(&now);
+    // 获取当前时间（精确到毫秒）
+    auto now_system = std::chrono::system_clock::now();
+    auto now_time_t = std::chrono::system_clock::to_time_t(now_system);
+    std::tm* timeinfo = std::localtime(&now_time_t);
+    
+    // 计算毫秒部分
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        now_system.time_since_epoch()) % 1000;
     
     // 确保日志文件已打开
     ensure_log_file_open();
     
-    // 生成时间戳：YYYY-MM-DD HH:MM:SS
+    // 生成时间戳：YYYY-MM-DD HH:MM:SS.mmm
     std::ostringstream timestamp_stream;
     timestamp_stream << std::setfill('0') 
                      << std::setw(4) << (1900 + timeinfo->tm_year) << "-"
@@ -82,15 +88,14 @@ static void write_log(const std::string& message) {
                      << std::setfill('0') << std::setw(2) << timeinfo->tm_mday << " "
                      << std::setfill('0') << std::setw(2) << timeinfo->tm_hour << ":"
                      << std::setfill('0') << std::setw(2) << timeinfo->tm_min << ":"
-                     << std::setfill('0') << std::setw(2) << timeinfo->tm_sec;
+                     << std::setfill('0') << std::setw(2) << timeinfo->tm_sec << "."
+                     << std::setfill('0') << std::setw(3) << ms.count();
     
     // 写入日志文件
     if (g_log_file.is_open()) {
         g_log_file << "[" << timestamp_stream.str() << "] " << message << std::endl;
     }
-    
-    // 同时输出到控制台
-    // std::cout << message << std::endl;
+    return timestamp_stream.str();
 }
 
 void start_pointcloud_server(const std::string& host, int port, DetectorFunc detector, bool* running) 
@@ -98,10 +103,10 @@ void start_pointcloud_server(const std::string& host, int port, DetectorFunc det
     HttpService service;
     HttpServer server(&service);
     
-    // 设置线程数：支持每秒20次请求，每个请求处理6秒
-    // 理论需求：20 QPS × 6秒 = 120个并发线程
+    // 设置线程数：支持每秒10次请求，每个请求处理3秒
+    // 理论需求：10 QPS × 3秒 = 30个并发线程
     // 设置为150个线程以应对峰值和系统开销
-    server.setThreadNum(150);
+    server.setThreadNum(50);
     
     // 设置超时时间：每个请求处理6秒，设置读写超时为8秒（留有余量）
     // libhv 默认超时较长，但我们可以通过 keepalive_timeout 设置
@@ -110,25 +115,7 @@ void start_pointcloud_server(const std::string& host, int port, DetectorFunc det
     // Handle POST requests to /pointcloud/detect
     service.POST("/pointcloud/detect", [detector](HttpRequest* req, HttpResponse* resp) -> int {
         std::string body = req->body;
-        write_log("Body: " + body);
-        
-        // 生成时间戳
-        std::time_t now = std::time(nullptr);
-        std::tm* timeinfo = std::localtime(&now);
-        std::ostringstream time_stream;
-        time_stream << std::setfill('0') 
-                    << std::setw(4) << (1900 + timeinfo->tm_year) << "-"
-                    << std::setfill('0') << std::setw(2) << (timeinfo->tm_mon + 1) << "-"
-                    << std::setfill('0') << std::setw(2) << timeinfo->tm_mday << " "
-                    << std::setfill('0') << std::setw(2) << timeinfo->tm_hour << ":"
-                    << std::setfill('0') << std::setw(2) << timeinfo->tm_min << ":"
-                    << std::setfill('0') << std::setw(2) << timeinfo->tm_sec;
-        std::string timestamp_str = time_stream.str();
-        
-        std::ostringstream log_msg;
-        log_msg << "[REQUEST_RECEIVED] " << timestamp_str 
-                << " - Body: " << body;
-        write_log(log_msg.str());
+        std::string timestamp_str = write_log("Body: " + body);
         
         try {
             // Parse JSON request
@@ -295,7 +282,7 @@ void async_forward_to_other_service(const std::string& unique_id,
         payload["vehicle_serial_number"] = unique_id;
         payload["vehicle_lidar_type"] = lidar_tpye;
         payload["vehicle_detect_time"] = "";
-        write_log(payload.dump());
+        //write_log(payload.dump());
         // 全图点云
         payload["vehicle_radar_points"] = nlohmann::json::array();
         for (const auto &p : point_cloud) {

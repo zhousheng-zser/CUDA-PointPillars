@@ -350,11 +350,22 @@ void post_processing(const std::vector<pointpillar::lidar::BoundingBox> &bboxes,
             detect::ProcessingBox calibrated_box = detect::ProcessingBox(box);
             calibrated_box.rt = std::fmod(calibrated_box.rt+M_PI, M_PI);
 
-            // 限制角度在[π/2-π/18 , π/2+π/18]范围内，即以π/2为中心，偏差±10度
-            if(calibrated_box.rt > (0.5 + 1.0/18.0)*M_PI  )
-                calibrated_box.rt = (0.5 + 1.0/18.0)*M_PI;
-            else if(calibrated_box.rt < (0.5 - 1.0/18.0)*M_PI)
-                calibrated_box.rt = (0.5 - 1.0/18.0)*M_PI;
+
+            
+            // 动态角度限制：k_ 的单位是度，车越长 k_ 越小，最小为 0 度
+            // k_ = (l/w) * 10度，当 l ≫ w 时 k_ 接近 0 度
+            float k_ = (calibrated_box.l / calibrated_box.w) * 10.0f;  // k_ 的单位是度
+            if (k_ < 0.0f) k_ = 0.0f;
+            if (k_ > 10.0f) k_ = 10.0f;  // 最大限制为 10 度
+
+            // 限制角度在 [π/2 - k_*π/180 , π/2 + k_*π/180]，k_ 的单位是度
+            float k_rad = k_ * M_PI / 180.0f;  // 转换为弧度
+            float upper = M_PI / 2.0f + k_rad;
+            float lower = M_PI / 2.0f - k_rad;
+            if(calibrated_box.rt > upper)
+                calibrated_box.rt = upper;
+            else if(calibrated_box.rt < lower)
+                calibrated_box.rt = lower;
             calib_3d_box(points_filtered, calibrated_box);
             if(calibrated_box.h / calibrated_box.l>2 || calibrated_box.h / calibrated_box.w>2 ||calibrated_box.score ==0 )
                 continue;
