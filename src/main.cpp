@@ -164,6 +164,8 @@ void SaveBoxesAsPCD(const std::vector<pointpillar::lidar::BoundingBox> &boxes,
     line_points.reserve((size_t)boxes.size() * 12 * 20);
 
     for (const auto &b : boxes) {
+        // if(b.score < 0.12) 
+        //     continue;
         std::array<nvtype::Float3, 8> cs;
         boxCorners(b, cs);
         const int edges[12][2] = {

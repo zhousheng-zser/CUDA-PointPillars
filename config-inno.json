@@ -26,7 +26,7 @@
     "min_distance": 6.0
   },
   "detection": {
-    "score_threshold": 0.1
+    "score_threshold": 0.115
   },
   "draw": {
     "point_cloud_draw_step": 0.1

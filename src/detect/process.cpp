@@ -367,9 +367,10 @@ void post_processing(const std::vector<pointpillar::lidar::BoundingBox> &bboxes,
             else if(calibrated_box.rt < lower)
                 calibrated_box.rt = lower;
             calib_3d_box(points_filtered, calibrated_box);
-            if(calibrated_box.h / calibrated_box.l>2 || calibrated_box.h / calibrated_box.w>2 ||calibrated_box.score ==0 )
+            if(calibrated_box.score ==0 ||calibrated_box.points.size() < 10 || 
+            calibrated_box.h / calibrated_box.l>3 || calibrated_box.h / calibrated_box.w>3)
                 continue;
-            else if(calibrated_box.h <0.6 || calibrated_box.w<0.6 || calibrated_box.l<0.6)
+            else if(calibrated_box.h <0.5 || calibrated_box.w<0.5 || calibrated_box.l<0.5)
                 continue;
 
             // 用单个框来画图，直接将框追加到calibrated_box.points后面（高效，无需格式转换）

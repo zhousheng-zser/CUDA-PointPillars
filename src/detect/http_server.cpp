@@ -3,6 +3,7 @@
 #include <hv/HttpServer.h>
 #include <hv/HttpService.h>
 #include <hv/HttpClient.h>
+#include <hv/hasync.h>
 #include <nlohmann/json.hpp>
 #include <iostream>
 #include <exception>
@@ -113,7 +114,8 @@ void start_pointcloud_server(const std::string& host, int port, DetectorFunc det
     service.keepalive_timeout = 8000;  // 8秒，单位：毫秒
     
     // Handle POST requests to /pointcloud/detect
-    service.POST("/pointcloud/detect", [detector](HttpRequest* req, HttpResponse* resp) -> int {
+    // 方案B：异步处理，使用 HttpResponseWriterPtr，耗时推理在 hv::async 完成后再 writer->End()
+    service.POST("/pointcloud/detect", [detector](const HttpRequestPtr& req, const HttpResponseWriterPtr& writer) {
         std::string body = req->body;
         std::string timestamp_str = write_log("Body: " + body);
         
@@ -131,9 +133,11 @@ void start_pointcloud_server(const std::string& host, int port, DetectorFunc det
                     }},
                     {"ret_body", json::object()}
                 };
-                resp->SetBody(error_resp.dump());
-                resp->SetContentType("application/json");
-                return HTTP_STATUS_OK;
+                writer->Begin();
+                writer->WriteHeader("Content-Type", "application/json");
+                writer->WriteBody(error_resp.dump());
+                writer->End();
+                return;
             }
             
             // Extract req_body
@@ -146,9 +150,11 @@ void start_pointcloud_server(const std::string& host, int port, DetectorFunc det
                     }},
                     {"ret_body", json::object()}
                 };
-                resp->SetBody(error_resp.dump());
-                resp->SetContentType("application/json");
-                return HTTP_STATUS_OK;
+                writer->Begin();
+                writer->WriteHeader("Content-Type", "application/json");
+                writer->WriteBody(error_resp.dump());
+                writer->End();
+                return;
             }
             
             json req_body = req_data["req_body"];
@@ -164,55 +170,48 @@ void start_pointcloud_server(const std::string& host, int port, DetectorFunc det
                     }},
                     {"ret_body", json::object()}
                 };
-                resp->SetBody(error_resp.dump());
-                resp->SetContentType("application/json");
-                return HTTP_STATUS_OK;
+                writer->Begin();
+                writer->WriteHeader("Content-Type", "application/json");
+                writer->WriteBody(error_resp.dump());
+                writer->End();
+                return;
             }
             
-            //std::cout << "unique_id: " << unique_id << ", road_id: " << road_id << std::endl;
-            
-            // Call detector function if available
-            DetectionResult result;
-            if (detector) {
-                result = detector(unique_id, road_id);
-            } else {
-                // Fallback placeholder
-                result.length = 0.0f;
-                result.width = 0.0f;
-                result.height = 0.0f;
-                result.centre_length = 0.0f;
-                result.centre_width = 0.0f;
-                result.centre_height = 0.0f;
-                result.speed = 0.0f;
-                result.score = 0.0f;
-            }
-            
-            json success_resp = {
-                {"ret_type", "get_point_cloud_detect_response"},
-                {"ret_header", {
-                    {"code", 0}
-                }},
-                {"ret_body", {
-                    {"PointCloudsMessage", {
-                        {"unique_id", unique_id},
-                        {"length", result.length*1000},// Convert m to mm
-                        {"width", result.width*1000},// Convert m to mm
-                        {"height", result.height*1000},// Convert m to mm
-                        {"centre_length", result.centre_length*1000},// Convert m to mm
-                        {"centre_width", result.centre_width*1000},// Convert m to mm
-                        {"centre_height", result.centre_height*1000},// Convert m to mm
-                        {"speed", result.speed * 3.6f},  // Convert m/s to km/h
-                        {"score", result.score},
-                        {"coordinate_system", "ECEF"},
-                        {"sensor_type", "LiDAR"},
-                        {"timestamp", timestamp_str}
+            // 异步执行耗时推理，完成后再回包
+            hv::async([detector, writer, unique_id, road_id, timestamp_str]() {
+                DetectionResult result;
+                if (detector) {
+                    result = detector(unique_id, road_id);
+                } else {
+                    result = {};
+                }
+                
+                json success_resp = {
+                    {"ret_type", "get_point_cloud_detect_response"},
+                    {"ret_header", {{"code", 0}}},
+                    {"ret_body", {
+                        {"PointCloudsMessage", {
+                            {"unique_id", unique_id},
+                            {"length", result.length*1000},
+                            {"width", result.width*1000},
+                            {"height", result.height*1000},
+                            {"centre_length", result.centre_length*1000},
+                            {"centre_width", result.centre_width*1000},
+                            {"centre_height", result.centre_height*1000},
+                            {"speed", result.speed * 3.6f},
+                            {"score", result.score},
+                            {"coordinate_system", "ECEF"},
+                            {"sensor_type", "LiDAR"},
+                            {"timestamp", timestamp_str}
+                        }}
                     }}
-                }}
-            };
-            write_log(success_resp.dump());
-            resp->SetBody(success_resp.dump());
-            resp->SetContentType("application/json");
-            return HTTP_STATUS_OK;
+                };
+                write_log(success_resp.dump());
+                writer->Begin();
+                writer->WriteHeader("Content-Type", "application/json");
+                writer->WriteBody(success_resp.dump());
+                writer->End();
+            });
             
         } catch (const json::parse_error& e) {
             json error_resp = {
@@ -223,9 +222,10 @@ void start_pointcloud_server(const std::string& host, int port, DetectorFunc det
                 }},
                 {"ret_body", json::object()}
             };
-            resp->SetBody(error_resp.dump());
-            resp->SetContentType("application/json");
-            return HTTP_STATUS_OK;
+            writer->Begin();
+            writer->WriteHeader("Content-Type", "application/json");
+            writer->WriteBody(error_resp.dump());
+            writer->End();
         } catch (const std::exception& e) {
             std::ostringstream forward_msg;
             forward_msg << "Error:" << body << " Error processing request: " << e.what();
@@ -238,9 +238,10 @@ void start_pointcloud_server(const std::string& host, int port, DetectorFunc det
                 }},
                 {"ret_body", json::object()}
             };
-            resp->SetBody(error_resp.dump());
-            resp->SetContentType("application/json");
-            return HTTP_STATUS_OK;
+            writer->Begin();
+            writer->WriteHeader("Content-Type", "application/json");
+            writer->WriteBody(error_resp.dump());
+            writer->End();
         }
     });
     
