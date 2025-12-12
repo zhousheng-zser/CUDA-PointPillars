@@ -1,4 +1,4 @@
-#include <cuda_runtime.h>
+ #include <cuda_runtime.h>
 
 #include <math.h>
 #include <cmath>
@@ -7,6 +7,9 @@
 #include <thread>
 #include <mutex>
 #include <chrono>
+// #include <ctime>
+// #include <iomanip>
+// #include <sstream>
 #include <string>
 #include <algorithm>
 #include <limits>
@@ -106,8 +109,44 @@ void loop_get_lidar_data()
 {
     std::cout << "Point cloud collection thread started." << std::endl;
 
+    // Track last successful data reception time
+    auto last_data_time = std::chrono::steady_clock::now();
+    const auto timeout_duration = std::chrono::minutes(5); // 5 minutes timeout
+
     while (running) {
         try {
+            // Check if 5 minutes have passed without receiving data
+            auto current_time = std::chrono::steady_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(current_time - last_data_time);
+            
+            if (elapsed >= timeout_duration) {
+                std::cerr << "Warning: No lidar data received for 5 minutes. Radar may be powered off. Reinitializing..." << std::endl;
+                
+                // Uninitialize SDK
+                try {
+                    HesaiSDK::UninitHesaiSDK();
+                    std::cout << "HesaiSDK uninitialized." << std::endl;
+                } catch (const std::exception& e) {
+                    std::cout << "Error during UninitHesaiSDK: " << e.what() << std::endl;
+                }
+                
+                // Wait a bit before reinitializing
+                std::this_thread::sleep_for(std::chrono::seconds(2));
+                
+                // Reinitialize SDK
+                try {
+                    const auto& config = get_config();
+                    HesaiSDK::InitHesaiSDK(config.lidar_ip_address, config.lidar_roll, config.lidar_pitch, 
+                                           config.lidar_yaw, config.lidar_x, config.lidar_y, config.lidar_z);
+                    std::cout << "HesaiSDK reinitialized successfully." << std::endl;
+                    last_data_time = std::chrono::steady_clock::now(); // Reset timer
+                } catch (const std::exception& e) {
+                    std::cerr << "Error during InitHesaiSDK reinitialization: " << e.what() << std::endl;
+                    std::this_thread::sleep_for(std::chrono::seconds(5)); // Wait longer before retry
+                    continue;
+                }
+            }
+
             // Get point cloud from Hesai SDK
             std::vector<HesaiSDK::PointData> pc_data = HesaiSDK::GetPointCloudData();
             
@@ -125,7 +164,7 @@ void loop_get_lidar_data()
                     points_xyzi.push_back(p.x);
                     points_xyzi.push_back(p.y);
                     points_xyzi.push_back(p.z);
-                    points_xyzi.push_back((float)p.intensity);//  *0.0039215686274  等价除以255.0
+                    points_xyzi.push_back((float)p.intensity);
                 }
                 
                 // Update latest point cloud data
@@ -134,13 +173,15 @@ void loop_get_lidar_data()
                     points_queue = std::move(points_xyzi);
                     time_queue = pc_data[0].timestamp;
                 }
+                
+                last_data_time = std::chrono::steady_clock::now();
             }
 
             std::this_thread::sleep_for(std::chrono::milliseconds(45)); 
         } catch (const std::exception& e) {
             std::cerr << "Error in loop_get_lidar_data: " << e.what() << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            running = false;
+            // Don't set running = false on error, let it retry
         }
     }
 
@@ -155,14 +196,14 @@ http_server::DetectionResult handle_detection_request(const std::string& unique_
     tracking::MultiObjectTracker::BestResult best={0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f};
     std::vector<std::array<float, 4>> rendered_points;
     bool flag =mot->set_unique_id_for_closest_vehicle(unique_id, road_id,rendered_points); //去设置unique_id
-    if( !flag )
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(150));  //再给一次机会 
-        flag = mot->set_unique_id_for_closest_vehicle(unique_id, road_id,rendered_points);
-    }
+    // if( !flag )
+    // {
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(150));  //再给一次机会 
+    //     flag = mot->set_unique_id_for_closest_vehicle(unique_id, road_id,rendered_points);
+    // }
     if(flag)
     {
-        int T = 30;   // 30*200ms = 6s
+        int T = 10;   // 10*200ms = 2s
         while(mot->result_map_[unique_id].status_code != 1 && T)
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
@@ -214,11 +255,32 @@ void detect_task_lidar(std::vector<float> &points, std::vector<detect::Processin
     // 暂时不用在这儿画框
     // if(cnt_zser%200==0)
     // {
-    //     auto current_time = std::chrono::system_clock::now();
-    //     auto current_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-    //                             current_time.time_since_epoch())
-    //                             .count();
-    //     std::string save_pcd_name ="../train/" + std::to_string(current_ms) + ".pcd";
+        // auto current_time = std::chrono::system_clock::now();
+        // auto current_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        //                         current_time.time_since_epoch())
+        //                         .count();
+        // std::string save_pcd_name = []{
+        //     // std::chrono::system_clock::now() 返回的是 time_point，只包含从1970-01-01开始的时长
+        //     // 要获取年月日，必须转换为日历时间（time_t -> tm结构体）
+        //     auto now = std::chrono::system_clock::now();
+        //     auto time_t = std::chrono::system_clock::to_time_t(now);
+        //     std::tm tm = *std::localtime(&time_t);
+            
+        //     // 获取毫秒部分（time_point 可以精确到毫秒）
+        //     auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(
+        //         now.time_since_epoch()).count() % 1000;
+            
+        //     std::ostringstream filename_stream;
+        //     filename_stream << "../train/" 
+        //                     << std::setfill('0') << std::setw(4) << (1900 + tm.tm_year) << "-"
+        //                     << std::setfill('0') << std::setw(2) << (tm.tm_mon + 1) << "-"
+        //                     << std::setfill('0') << std::setw(2) << tm.tm_mday << "_"
+        //                     << std::setfill('0') << std::setw(2) << tm.tm_hour << "_"
+        //                     << std::setfill('0') << std::setw(2) << tm.tm_min << "_"
+        //                     << std::setfill('0') << std::setw(2) << tm.tm_sec << "_"
+        //                     << std::setfill('0') << std::setw(3) << millis << ".pcd";  
+        //     return filename_stream.str();
+        // }();
     // }
     // {// roi框
     //     const float cx = get_config().center_x;
@@ -231,7 +293,7 @@ void detect_task_lidar(std::vector<float> &points, std::vector<detect::Processin
     //     bboxes.push_back(range_box);
     // }
     // std::vector<std::array<float, 4>> rendered_points;
-    // detect::SaveBoxesAsPCD(bboxes, points_filtered.data(), points_filtered.size()/4, "", get_config().point_cloud_draw_step, rendered_points);
+    // detect::SaveBoxesAsPCD(bboxes_result, points_filtered.data(), points_filtered.size()/4, save_pcd_name, get_config().point_cloud_draw_step, rendered_points);
     // cnt_zser++;
 }
 
@@ -271,15 +333,20 @@ void point_cloud_detect() {
                 const int lane_count = std::max(1, get_config().lane_count);
                 const float total_width = range_x * 2.0f;
 
-                int road_id = 1;
+                float road_id = 1.0;
                 if (lane_count > 1 && total_width > 0.0f) {
-                    const float lane_span = total_width / static_cast<float>(lane_count);
+                    const float lane_span = total_width / static_cast<float>(lane_count); 
                     float best_dist = std::numeric_limits<float>::max();
-                    int best_lane = 1;
-                    for (int lane = 1; lane <= lane_count; ++lane) {
-                        const float lane_center = max_x - (lane - 1 + 0.5f) * lane_span;
+                    float best_lane = 1;
+                    int cnt = 0;
+                    for (float lane = 1; lane <= lane_count; lane+=0.5, cnt++) {
+                        const float lane_center = max_x - (lane - 0.5f) * lane_span;
                         const float dist = std::fabs(box.x - lane_center);
-                        if (dist < best_dist) {
+                        if (cnt%2==0 && dist < best_dist) {
+                            best_dist = dist;
+                            best_lane = lane;
+                        }
+                        else if(cnt%2==1 && dist < 0.5 && dist < best_dist) {
                             best_dist = dist;
                             best_lane = lane;
                         }
@@ -292,7 +359,7 @@ void point_cloud_detect() {
                 // y-前后 x-左右 z-上下
                 //车前下点作为车中心
                 detections_frame.emplace_back(
-                     box.y-0.5*box.w, box.x, box.z, box.w, box.l, box.h, box.rt, static_cast<float>(road_id), box.score);
+                     box.y-0.5*box.w, box.x, box.z, box.w, box.l, box.h, box.rt, road_id, box.score);
                 car_points_frame.push_back(std::move(box.points));
             }
 
