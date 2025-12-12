@@ -109,8 +109,44 @@ void loop_get_lidar_data()
 {
     std::cout << "Point cloud collection thread started." << std::endl;
 
+    // Track last successful data reception time
+    auto last_data_time = std::chrono::steady_clock::now();
+    const auto timeout_duration = std::chrono::minutes(5); // 5 minutes timeout
+
     while (running) {
         try {
+            // Check if 5 minutes have passed without receiving data
+            auto current_time = std::chrono::steady_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(current_time - last_data_time);
+            
+            if (elapsed >= timeout_duration) {
+                std::cerr << "Warning: No lidar data received for 5 minutes. Radar may be powered off. Reinitializing..." << std::endl;
+                
+                // Uninitialize SDK
+                try {
+                    InnoSDK::UninitInnoSDK();
+                    std::cout << "InnoSDK uninitialized." << std::endl;
+                } catch (const std::exception& e) {
+                    std::cout << "Error during UninitInnoSDK: " << e.what() << std::endl;
+                }
+                
+                // Wait a bit before reinitializing
+                std::this_thread::sleep_for(std::chrono::seconds(2));
+                
+                // Reinitialize SDK
+                try {
+                    const auto& config = get_config();
+                    InnoSDK::InitInnoSDK(config.lidar_ip_address, config.lidar_roll, config.lidar_pitch, 
+                                           config.lidar_yaw, config.lidar_x, config.lidar_y, config.lidar_z);
+                    std::cout << "InnoSDK reinitialized successfully." << std::endl;
+                    last_data_time = std::chrono::steady_clock::now(); // Reset timer
+                } catch (const std::exception& e) {
+                    std::cerr << "Error during InitInnoSDK reinitialization: " << e.what() << std::endl;
+                    std::this_thread::sleep_for(std::chrono::seconds(5)); // Wait longer before retry
+                    continue;
+                }
+            }
+
             // Get point cloud from Inno SDK
             std::vector<InnoSDK::PointData> pc_data = InnoSDK::GetPointCloudData();
             
@@ -128,7 +164,7 @@ void loop_get_lidar_data()
                     points_xyzi.push_back(p.x);
                     points_xyzi.push_back(p.y);
                     points_xyzi.push_back(p.z);
-                    points_xyzi.push_back((float)p.intensity);//  *0.0039215686274  等价除以255.0
+                    points_xyzi.push_back((float)p.intensity);
                 }
                 
                 // Update latest point cloud data
@@ -137,13 +173,15 @@ void loop_get_lidar_data()
                     points_queue = std::move(points_xyzi);
                     time_queue = pc_data[0].timestamp;
                 }
+                
+                last_data_time = std::chrono::steady_clock::now();
             }
 
             std::this_thread::sleep_for(std::chrono::milliseconds(45)); 
         } catch (const std::exception& e) {
             std::cerr << "Error in loop_get_lidar_data: " << e.what() << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            running = false;
+            // Don't set running = false on error, let it retry
         }
     }
 
