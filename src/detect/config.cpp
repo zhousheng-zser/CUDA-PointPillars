@@ -175,6 +175,20 @@ void RangeConfigSingleton::initializeConfig(RangeConfig& config, const std::stri
                     config.line2_config.end_y = -14.0f;
                     config.line2_config.end_z = -3.5f;
                 }
+
+                // DBSCAN configuration
+                if (j.contains("dbscan") && j["dbscan"].is_object()) {
+                    const auto& dbscan = j["dbscan"];
+                    if (dbscan.contains("use_dbscan")) config.use_dbscan = dbscan["use_dbscan"].get<bool>();
+                    if (dbscan.contains("eps")) config.dbscan_eps = dbscan["eps"].get<float>();
+                    if (dbscan.contains("max_cluster_ratio")) config.dbscan_max_cluster_ratio = dbscan["max_cluster_ratio"].get<float>();
+                    if (dbscan.contains("z_threshold")) config.dbscan_z_threshold = dbscan["z_threshold"].get<float>();
+                } else {
+                    config.use_dbscan = false;
+                    config.dbscan_eps = 0.25f;
+                    config.dbscan_max_cluster_ratio = 0.05f;
+                    config.dbscan_z_threshold = 0.19f;
+                }
                 
                 std::cout << "Configuration loaded from: " << json_file_path << std::endl;
             } else {
@@ -215,6 +229,10 @@ void RangeConfigSingleton::initializeConfig(RangeConfig& config, const std::stri
         config.line2_config.end_x = 0.0f;
         config.line2_config.end_y = -14.0f;
         config.line2_config.end_z = -3.5f;
+        config.use_dbscan = true;
+        config.dbscan_eps = 0.25f;
+        config.dbscan_max_cluster_ratio = 0.1f;
+        config.dbscan_z_threshold = 0.2f;
     }
     
     // 设置基本配置（从 JSON 或默认值）

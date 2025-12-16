@@ -39,10 +39,10 @@
   },
   "line1": {
     "start_x": 45.0,
-    "start_y": -7.0,
+    "start_y": -6.0,
     "start_z": -5.0,
     "end_x": 0.0,
-    "end_y": -7.0,
+    "end_y": -6.0,
     "end_z": -5.0
   },
   "line2": {
@@ -52,5 +52,11 @@
     "end_x": 0.0,
     "end_y": -17.0,
     "end_z": -5.0
+  },
+  "dbscan": {
+    "use_dbscan": true,
+    "eps": 0.25,
+    "max_cluster_ratio": 0.05,
+    "z_threshold": 0.19
   }
 }

@@ -1,5 +1,7 @@
 #include "detect/process.hpp"
 #include "detect/draw_meshlab.hpp"
+#include "detect/dbscan.hpp"
+#include <algorithm>
 
 namespace detect {
 
@@ -317,6 +319,13 @@ void calib_3d_box(const std::vector<float> &points_filtered,
             points_in_box.push_back(nvtype::Float3(px, py, pz));
             box.points.push_back(std::array<float, 4>{px, py, pz, kitti_to_intensity(points_filtered[i * 4 + 3])});
         }
+    }
+    
+    // DBSCAN 聚类过滤（如果启用）
+    const auto& cfg_dbscan = get_config();
+    if (cfg_dbscan.use_dbscan) {
+        dbscan_filter(points_in_box, box.points, cfg_dbscan.dbscan_eps,
+            cfg_dbscan.dbscan_max_cluster_ratio, cfg_dbscan.dbscan_z_threshold);
     }
     
     if (points_in_box.empty()) {

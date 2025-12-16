@@ -91,6 +91,7 @@ std::shared_ptr<pointpillar::lidar::Core> create_core()
     pp.min_range = vp.min_range;
     pp.max_range = vp.max_range;
     pp.feature_size = nvtype::Int2(vp.grid_size.x/2, vp.grid_size.y/2);
+    pp.nms_thresh = 0.2;
 
     pointpillar::lidar::CoreParameter param;
     param.voxelization = vp;
@@ -314,11 +315,10 @@ void point_cloud_detect() {
             }
             if(points.empty()) 
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                std::this_thread::sleep_for(std::chrono::milliseconds(20));
                 continue;
             }
             
-             //先一次跑全部车道 之后再看是不是每个车道开个线程去跑
             std::vector<detect::ProcessingBox> bboxes;
             auto result_pool = pool->enqueue(detect_task_lidar, std::ref(points), std::ref(bboxes));
             result_pool.get();
