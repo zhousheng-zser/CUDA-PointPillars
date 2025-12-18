@@ -1928,8 +1928,8 @@
             const p2 = rot( hw,  hl);
             const p3 = rot(-hw,  hl);
             
-            const z0 = z - hh; // 底部
-            const z1 = z + hh; // 顶部
+            const z0 = z; // 底部
+            const z1 = z + h; // 顶部
             
             // 8个角点坐标
             const corners = [
@@ -2546,8 +2546,8 @@
             const p2 = rot( hw,  hl);
             const p3 = rot(-hw,  hl);
             
-            const z0 = z - hh;
-            const z1 = z + hh;
+            const z0 = z;
+            const z1 = z + h;
             
             return [
                 {x: x + p0.x, y: y + p0.y, z: z0}, // 0

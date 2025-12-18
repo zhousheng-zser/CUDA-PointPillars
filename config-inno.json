@@ -1,7 +1,7 @@
 {
   "center_x": 32.8,
   "center_y": 4.6,
-  "center_z": -2.7,
+  "center_z": -0.7,
   "range_x": 8,
   "range_y": 25,
   "range_z": 6,
@@ -14,7 +14,7 @@
     "yaw": -90.0,
     "x": 38.400,
     "y": -23.000,
-    "z": 4.300,
+    "z": 6.300,
     "ip_address": "10.168.1.62"
   },
   "web_service": {
@@ -35,26 +35,26 @@
     "a":  -0.013322,
     "b":  0.010614,
     "c":  0.999855,
-    "d":  5.081007
+    "d":  3.081007
   },
   "line1": {
     "start_x": 45.0,
     "start_y": -6.0,
-    "start_z": -5.0,
+    "start_z": -3.0,
     "end_x": 0.0,
     "end_y": -6.0,
-    "end_z": -5.0
+    "end_z": -3.0
   },
   "line2": {
     "start_x": 45.0,
     "start_y": -17.0,
-    "start_z": -5.0,
+    "start_z": -3.0,
     "end_x": 0.0,
     "end_y": -17.0,
-    "end_z": -5.0
+    "end_z": -3.0
   },
   "dbscan": {
-    "use_dbscan": true,
+    "use_dbscan": false,
     "eps": 0.25,
     "max_cluster_ratio": 0.05,
     "z_threshold": 0.19

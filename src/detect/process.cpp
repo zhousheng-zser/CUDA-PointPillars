@@ -358,7 +358,8 @@ void post_processing(const std::vector<pointpillar::lidar::BoundingBox> &bboxes,
             //获取最小外接贴地长方体
             detect::ProcessingBox calibrated_box = detect::ProcessingBox(box);
             calibrated_box.rt = std::fmod(calibrated_box.rt+M_PI, M_PI);
-
+            if( calibrated_box.rt < M_PI/2.0f - M_PI/3.0f || calibrated_box.rt > M_PI/2.0f + M_PI/3.0f) //与车道方向接近垂直的框不进行处理
+                continue;   
 
             
             // 动态角度限制：k_ 的单位是度，车越长 k_ 越小，最小为 0 度
