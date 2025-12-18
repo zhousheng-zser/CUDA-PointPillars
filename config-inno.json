@@ -23,7 +23,7 @@
     "timeout_sec": 15
   },
   "tracking": {
-    "min_distance": 6.0
+    "min_distance": 8.0
   },
   "detection": {
     "score_threshold": 0.115
@@ -54,7 +54,7 @@
     "end_z": -3.0
   },
   "dbscan": {
-    "use_dbscan": false,
+    "use_dbscan": true,
     "eps": 0.25,
     "max_cluster_ratio": 0.05,
     "z_threshold": 0.19

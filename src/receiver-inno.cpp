@@ -226,7 +226,6 @@ http_server::DetectionResult handle_detection_request(const std::string& unique_
     return result;
 }
 
-int cnt_zser = 0 ;
 // 检测 前处理->推理->后处理
 void detect_task_lidar(std::vector<float> &points, std::vector<detect::ProcessingBox> &bboxes_result) 
 {
@@ -252,50 +251,6 @@ void detect_task_lidar(std::vector<float> &points, std::vector<detect::Processin
     int points_size = points_filtered.size() / 4;
     std::vector<pointpillar::lidar::BoundingBox> bboxes = ptr->forward(points_filtered.data(), points_size, stream); 
     detect::post_processing(bboxes, bboxes_result, points_filtered);
-
-    // 暂时不用在这儿画框
-    // if(cnt_zser%200==0)
-    // {
-        // auto current_time = std::chrono::system_clock::now();
-        // auto current_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-        //                         current_time.time_since_epoch())
-        //                         .count();
-        // std::string save_pcd_name = []{
-        //     // std::chrono::system_clock::now() 返回的是 time_point，只包含从1970-01-01开始的时长
-        //     // 要获取年月日，必须转换为日历时间（time_t -> tm结构体）
-        //     auto now = std::chrono::system_clock::now();
-        //     auto time_t = std::chrono::system_clock::to_time_t(now);
-        //     std::tm tm = *std::localtime(&time_t);
-            
-        //     // 获取毫秒部分（time_point 可以精确到毫秒）
-        //     auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(
-        //         now.time_since_epoch()).count() % 1000;
-            
-        //     std::ostringstream filename_stream;
-        //     filename_stream << "../train/" 
-        //                     << std::setfill('0') << std::setw(4) << (1900 + tm.tm_year) << "-"
-        //                     << std::setfill('0') << std::setw(2) << (tm.tm_mon + 1) << "-"
-        //                     << std::setfill('0') << std::setw(2) << tm.tm_mday << "_"
-        //                     << std::setfill('0') << std::setw(2) << tm.tm_hour << "_"
-        //                     << std::setfill('0') << std::setw(2) << tm.tm_min << "_"
-        //                     << std::setfill('0') << std::setw(2) << tm.tm_sec << "_"
-        //                     << std::setfill('0') << std::setw(3) << millis << ".pcd";  
-        //     return filename_stream.str();
-        // }();
-    // }
-    // {// roi框
-    //     const float cx = get_config().center_x;
-    //     const float cy = get_config().center_y;
-    //     const float cz = get_config().min_z;
-    //     const float w  = get_config().range_x * 2.0f;
-    //     const float l  = get_config().range_y * 2.0f;
-    //     const float h  = get_config().range_z;
-    //     detect::ProcessingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
-    //     bboxes.push_back(range_box);
-    // }
-    // std::vector<std::array<float, 4>> rendered_points;
-    // detect::SaveBoxesAsPCD(bboxes_result, points_filtered.data(), points_filtered.size()/4, save_pcd_name, get_config().point_cloud_draw_step, rendered_points);
-    // cnt_zser++;
 }
 
 // 雷达实时检测
@@ -318,7 +273,8 @@ void point_cloud_detect() {
                 std::this_thread::sleep_for(std::chrono::milliseconds(20));
                 continue;
             }
-            
+    
+            //auto start_time = std::chrono::high_resolution_clock::now();
             std::vector<detect::ProcessingBox> bboxes;
             auto result_pool = pool->enqueue(detect_task_lidar, std::ref(points), std::ref(bboxes));
             result_pool.get();
@@ -365,37 +321,9 @@ void point_cloud_detect() {
 
             // Run tracking on both frames
             mot->update(detections_frame,car_points_frame, time/1000, points);
-            // {// roi框
-            //     const float cx = get_config().center_x;
-            //     const float cy = get_config().center_y;
-            //     const float cz = get_config().min_z;
-            //     const float w  = get_config().range_x * 2.0f;
-            //     const float l  = get_config().range_y * 2.0f;
-            //     const float h  = get_config().range_z;
-            //     detect::ProcessingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
-            //     bboxes.push_back(range_box);
-            // }
-            
-            // {//推理框
-            //     const float cx = 34.56; 
-            //     const float cy = 0;
-            //     const float cz = -3;
-            //     const float w  = 34.56 * 2.0f;
-            //     const float l  = 39.680 * 2.0f;
-            //     const float h  = 4;
-            //     detect::ProcessingBox range_box(cx, cy, cz, w, l, h, 0.0f, -1.0, 1.0f);
-            //     bboxes.push_back(range_box);
-            // }
-
-            // auto current_time = std::chrono::system_clock::now();
-            // auto current_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-            //                       current_time.time_since_epoch())
-            //                       .count();
-            // std::string save_pcd_name =
-            //     "../results/detection_" + std::to_string(time) + "_" + std::to_string(current_ms) + ".pcd";
-            // std::vector<std::array<float, 4>> rendered_points;
-            // detect::SaveBoxesAsPCD(bboxes, points.data(), points.size()/4, save_pcd_name, get_config().point_cloud_draw_step, rendered_points);
-            
+            // auto end_time = std::chrono::high_resolution_clock::now();
+            // auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+            // std::cout << "单帧耗时: " << duration.count() << " ms" << std::endl;
         } catch (const std::exception& e) {
             std::cerr << "Error in handle_detection_request: " << e.what() << std::endl;
         }

@@ -324,8 +324,18 @@ void calib_3d_box(const std::vector<float> &points_filtered,
     // DBSCAN 聚类过滤（如果启用）
     const auto& cfg_dbscan = get_config();
     if (cfg_dbscan.use_dbscan) {
-        dbscan_filter(points_in_box, box.points, cfg_dbscan.dbscan_eps,
-            cfg_dbscan.dbscan_max_cluster_ratio, cfg_dbscan.dbscan_z_threshold);
+        int num_points = points_in_box.size();
+        const int cuda_threshold = 500;  // 点数 >= 500 时使用 CUDA 版本
+        
+        if (num_points >= cuda_threshold) {
+            // 使用 CUDA 加速版本（对于大量点云）
+            dbscan_filter_cuda(points_in_box, box.points, cfg_dbscan.dbscan_eps,
+                cfg_dbscan.dbscan_max_cluster_ratio, cfg_dbscan.dbscan_z_threshold, nullptr);
+        } else {
+            // 使用 CPU 版本（对于少量点云）
+            dbscan_filter(points_in_box, box.points, cfg_dbscan.dbscan_eps,
+                cfg_dbscan.dbscan_max_cluster_ratio, cfg_dbscan.dbscan_z_threshold);
+        }
     }
     
     if (points_in_box.empty()) {

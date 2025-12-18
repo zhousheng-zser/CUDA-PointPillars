@@ -118,6 +118,7 @@ set_target_properties(pointpillar PROPERTIES
 file(GLOB_RECURSE DETECT_FILES
     src/detect/*.hpp 
     src/detect/*.cpp
+    src/detect/*.cu
 )
 ####################### receiver-hsai program #############################
 
