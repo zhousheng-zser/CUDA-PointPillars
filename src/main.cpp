@@ -234,6 +234,32 @@ void SaveBoxPred(std::vector<pointpillar::lidar::BoundingBox> boxes, std::string
     return;
 };
 
+void SaveBoxPredToLabels(std::vector<pointpillar::lidar::BoundingBox> boxes, std::string file_name)
+{
+    std::ofstream ofs;
+    ofs.open(file_name, std::ios::out);
+    if (ofs.is_open()) {
+        for (const auto box : boxes) {
+        if(box.l>70)
+            continue;
+          ofs <<"Car 0 0 0 0 0 0 0 ";
+          ofs << box.h << " ";
+          ofs << box.l << " ";
+          ofs << box.w << " ";
+          ofs << box.x << " ";
+          ofs << box.y << " ";
+          ofs << box.z << " ";
+          ofs << ((box.rt*180/3.1415926)-180) /180*3.1415926 << "\n";
+        }
+    }
+    else {
+      std::cerr << "Output file cannot be opened!" << std::endl;
+    }
+    ofs.close();
+    std::cout << "Saved prediction in: " << file_name << std::endl;
+    return;
+};
+
 std::shared_ptr<pointpillar::lidar::Core> create_core() {
     pointpillar::lidar::VoxelizationParameter vp;
     vp.min_range = nvtype::Float3(0.0, -39.68f, -3.0);
@@ -351,6 +377,9 @@ int main(int argc, char** argv) {
 
         std::string save_file_name = std::string(out_dir) + file + ".txt";
         SaveBoxPred(bboxes, save_file_name);
+
+        std::string save_file_name_labels = std::string(out_dir) +std::string("labels/")+ file + ".txt";
+        SaveBoxPredToLabels(bboxes, save_file_name_labels);
 
         std::string save_pcd_name = std::string(out_dir) + file + "_boxes.pcd";
         SaveBoxesAsPCD(bboxes, (float *)buffer.get(), points_size, save_pcd_name, 0.05f);

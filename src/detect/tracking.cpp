@@ -729,7 +729,7 @@ bool MultiObjectTracker::set_unique_id_for_closest_vehicle(const std::string& un
         
         BBox3D val = trk.get_last_observation();
         
-        if ( std::fabs(val.line() - road_id) >= 1.0f) {
+        if ( std::fabs(val.line() - road_id) >= 0.99f) {
             continue;
         }
         
