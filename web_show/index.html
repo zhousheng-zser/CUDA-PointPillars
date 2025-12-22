@@ -602,12 +602,12 @@
     <div class="container">
         <div class="header">
             <h1>点云可视化 - Point Cloud Viewer</h1>
-            <div class="subtitle">上传并可视化 .pcd 点云文件</div>
+            <div class="subtitle">上传并可视化 .pcd 或 .bin 点云文件</div>
         </div>
 
         <div class="toolbar">
             <div class="upload-area">
-                <input type="file" id="fileInput" accept=".pcd">
+                <input type="file" id="fileInput" accept=".pcd,.bin">
                 <button class="btn" onclick="document.getElementById('fileInput').click()">选择文件</button>
             </div>
             <div class="file-info" id="fileInfo" style="display: none;">
@@ -932,6 +932,111 @@
             }
         }
 
+        // 解析 BIN 文件（二进制格式：每个点包含 x, y, z, intensity，每个值4字节float32）
+        function parseBinFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    try {
+                        const arrayBuffer = e.target.result;
+                        const dataView = new DataView(arrayBuffer);
+                        const fileSize = arrayBuffer.byteLength;
+                        
+                        // 每个点包含4个float32值（x, y, z, intensity），每个4字节
+                        const bytesPerPoint = 4 * 4; // 16字节
+                        const pointCount = Math.floor(fileSize / bytesPerPoint);
+                        
+                        if (pointCount === 0) {
+                            reject(new Error('BIN文件为空或格式不正确'));
+                            return;
+                        }
+                        
+                        // 检查文件大小是否匹配
+                        if (fileSize % bytesPerPoint !== 0) {
+                            console.warn(`文件大小不完全匹配：${fileSize} 字节，期望是 ${pointCount * bytesPerPoint} 字节的倍数`);
+                        }
+                        
+                        const positions = [];
+                        const colors = [];
+                        let minZ = Infinity, maxZ = -Infinity;
+                        let minIntensity = Infinity, maxIntensity = -Infinity;
+                        
+                        // 第一遍：读取所有数据并计算范围
+                        const tempData = [];
+                        for (let i = 0; i < pointCount; i++) {
+                            const offset = i * bytesPerPoint;
+                            
+                            // 读取float32值（小端序）
+                            const x = dataView.getFloat32(offset, true);
+                            const y = dataView.getFloat32(offset + 4, true);
+                            const z = dataView.getFloat32(offset + 8, true);
+                            const intensity = dataView.getFloat32(offset + 12, true);
+                            
+                            tempData.push({ x, y, z, intensity });
+                            
+                            // 更新范围
+                            if (z < minZ) minZ = z;
+                            if (z > maxZ) maxZ = z;
+                            if (intensity < minIntensity) minIntensity = intensity;
+                            if (intensity > maxIntensity) maxIntensity = intensity;
+                        }
+                        
+                        // 第二遍：生成位置和颜色数组
+                        const intensityRange = maxIntensity > minIntensity ? (maxIntensity - minIntensity) : 1;
+                        const zRange = maxZ > minZ ? (maxZ - minZ) : 1;
+                        
+                        for (const point of tempData) {
+                            positions.push(point.x, point.y, point.z);
+                            
+                            // 使用intensity字段进行颜色映射
+                            const normalizedIntensity = (point.intensity - minIntensity) / intensityRange;
+                            // 使用更亮的颜色映射
+                            const r = Math.min(1, normalizedIntensity * 1.2);
+                            const g = Math.min(1, normalizedIntensity * 1.0);
+                            const b = Math.min(1, normalizedIntensity * 0.8);
+                            colors.push(r, g, b);
+                        }
+                        
+                        if (positions.length === 0) {
+                            reject(new Error('未找到有效的点数据'));
+                            return;
+                        }
+                        
+                        // 计算位置范围（只检查前1000个点以提高性能）
+                        let minX = Infinity, maxX = -Infinity;
+                        let minY = Infinity, maxY = -Infinity;
+                        const checkCount = Math.min(1000, pointCount);
+                        for (let i = 0; i < checkCount * 3; i += 3) {
+                            if (positions[i] < minX) minX = positions[i];
+                            if (positions[i] > maxX) maxX = positions[i];
+                            if (positions[i+1] < minY) minY = positions[i+1];
+                            if (positions[i+1] > maxY) maxY = positions[i+1];
+                        }
+                        
+                        console.log(`成功解析 ${pointCount} 个点（BIN格式）`);
+                        console.log(`位置范围: X[${minX.toFixed(2)}, ${maxX.toFixed(2)}] Y[${minY.toFixed(2)}, ${maxY.toFixed(2)}] Z[${minZ.toFixed(2)}, ${maxZ.toFixed(2)}]`);
+                        console.log(`Intensity范围: [${minIntensity.toFixed(2)}, ${maxIntensity.toFixed(2)}]`);
+                        console.log(`颜色数组长度: ${colors.length}, 位置数组长度: ${positions.length}`);
+                        
+                        resolve({
+                            positions: new Float32Array(positions),
+                            colors: new Float32Array(colors),
+                            count: pointCount
+                        });
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+                
+                reader.onerror = function() {
+                    reject(new Error('读取BIN文件失败'));
+                };
+                
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
         // 解析 PCD 文件
         function parsePCDFile(file) {
             return new Promise((resolve, reject) => {
@@ -1132,7 +1237,17 @@
             updateStatus('正在解析文件...', 'info');
             
             try {
-                const data = await parsePCDFile(file);
+                // 根据文件扩展名选择解析函数
+                const fileName = file.name.toLowerCase();
+                let data;
+                
+                if (fileName.endsWith('.bin')) {
+                    data = await parseBinFile(file);
+                } else if (fileName.endsWith('.pcd')) {
+                    data = await parsePCDFile(file);
+                } else {
+                    throw new Error('不支持的文件格式，请使用 .pcd 或 .bin 文件');
+                }
                 
                 updateStatus(`找到 ${data.count} 个点`, 'info');
                 
@@ -1312,8 +1427,9 @@
             const file = e.target.files[0];
             if (!file) return;
             
-            if (!file.name.toLowerCase().endsWith('.pcd')) {
-                updateStatus('错误: 请选择 .pcd 文件', 'error');
+            const fileName = file.name.toLowerCase();
+            if (!fileName.endsWith('.pcd') && !fileName.endsWith('.bin')) {
+                updateStatus('错误: 请选择 .pcd 或 .bin 文件', 'error');
                 return;
             }
             
@@ -1338,14 +1454,15 @@
             e.stopPropagation();
             
             const file = e.dataTransfer.files[0];
-            if (file && file.name.toLowerCase().endsWith('.pcd')) {
+            const fileName = file ? file.name.toLowerCase() : '';
+            if (file && (fileName.endsWith('.pcd') || fileName.endsWith('.bin'))) {
                 document.getElementById('fileInput').files = e.dataTransfer.files;
                 document.getElementById('fileName').textContent = file.name;
                 document.getElementById('fileSize').textContent = formatFileSize(file.size);
                 document.getElementById('fileInfo').style.display = 'inline-block';
                 loadPointCloud(file);
             } else {
-                updateStatus('错误: 请拖拽 .pcd 文件', 'error');
+                updateStatus('错误: 请拖拽 .pcd 或 .bin 文件', 'error');
             }
         });
 

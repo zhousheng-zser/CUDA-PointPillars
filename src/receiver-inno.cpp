@@ -91,7 +91,7 @@ std::shared_ptr<pointpillar::lidar::Core> create_core()
     pp.min_range = vp.min_range;
     pp.max_range = vp.max_range;
     pp.feature_size = nvtype::Int2(vp.grid_size.x/2, vp.grid_size.y/2);
-    pp.nms_thresh = 0.1;
+    //pp.nms_thresh = 0.1;
 
     pointpillar::lidar::CoreParameter param;
     param.voxelization = vp;

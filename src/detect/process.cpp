@@ -302,8 +302,8 @@ void calib_3d_box(const std::vector<float> &points_filtered,
     // 注意：boxCorners 中 w 对应旋转后的 x 坐标，l 对应旋转后的 y 坐标
     // point_in_3d_box 中 range_x 用于 local_x 判断，range_y 用于 local_y 判断
      // 边长*1.2  扩大一点点  防止检测框小  
-    cfg.range_x = box.w * (0.5f+0.1f);  // w 对应 x 方向（point_in_3d_box 中会乘以2）
-    cfg.range_y = box.l * (0.5f+0.1f);  // l 对应 y 方向（point_in_3d_box 中会乘以2）
+    cfg.range_x = box.w * 0.5f+std::min(box.w*0.1f, 0.5f);  // w 对应 x 方向（point_in_3d_box 中会乘以2）
+    cfg.range_y = box.l * 0.5f+std::min(box.l*0.1f, 0.5f);  // l 对应 y 方向（point_in_3d_box 中会乘以2）
     cfg.range_z = box.h * (1.0f+0.2f);  // h 对应 z 方向（高度，不是半高）
     cfg.ry = box.rt;  // 旋转角度（都是绕Z轴旋转，在雷达坐标系XY平面内）
     // 筛选点云中属于ROI框的点
