@@ -234,6 +234,28 @@ void SaveBoxPred(std::vector<pointpillar::lidar::BoundingBox> boxes, std::string
     return;
 };
 
+// 类别名称映射函数，支持9分类
+static const char* getClassName(int class_id) {
+    // 9分类类别名称映射
+    static const char* class_names[9] = {
+        "Mini_bus",          // 0
+        "Large_bus",         // 1
+        "Mini_truck",        // 2
+        "Medium_truck",      // 3
+        "Heavy_truck",       // 4
+        "Extra_large_truck", // 5
+        "Container_truck",   // 6
+        "Motorcycle",        // 7
+        "Tractor"            // 8
+    };
+    
+    if (class_id >= 0 && class_id < 9) {
+        return class_names[class_id];
+    }
+    // 如果类别ID超出范围，返回默认类别
+    return "Unknown";
+}
+
 void SaveBoxPredToLabels(std::vector<pointpillar::lidar::BoundingBox> boxes, std::string file_name)
 {
     std::ofstream ofs;
@@ -242,7 +264,9 @@ void SaveBoxPredToLabels(std::vector<pointpillar::lidar::BoundingBox> boxes, std
         for (const auto box : boxes) {
         if(box.l>70)
             continue;
-          ofs <<"Car 0 0 0 0 0 0 0 ";
+          // 根据box.id获取对应的类别名称
+          const char* class_name = getClassName(box.id);
+          ofs << class_name << " 0 0 0 0 0 0 0 ";
           ofs << box.h << " ";
           ofs << box.l << " ";
           ofs << box.w << " ";
@@ -279,7 +303,7 @@ std::shared_ptr<pointpillar::lidar::Core> create_core() {
 
     pointpillar::lidar::CoreParameter param;
     param.voxelization = vp;
-    param.lidar_model = "../model/pointpillar.plan";
+    param.lidar_model = "../model-9/pointpillar.plan";
     param.lidar_post = pp;
     return pointpillar::lidar::create_core(param);
 }

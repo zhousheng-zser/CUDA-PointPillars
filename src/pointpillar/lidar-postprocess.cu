@@ -89,8 +89,8 @@ __global__ void postprocess_kernal(const float *cls_input,
     }
   }
 
-  // Only output car class (id == 0) during inference
-  if (max_score >= score_thresh && cls_id == 0)
+  // Output all classes (0-8) during inference for 9-class model
+  if (max_score >= score_thresh)
   {
     int box_offset = loc_index * num_anchors * num_box_values + ith_anchor * num_box_values;
     int dir_cls_offset = loc_index * num_anchors * 2 + ith_anchor * 2;

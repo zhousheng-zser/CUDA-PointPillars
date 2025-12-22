@@ -50,18 +50,23 @@ struct PostProcessParameter {
     nvtype::Float3 min_range;
     nvtype::Float3 max_range;
     nvtype::Int2 feature_size;
-    int num_classes = 3;
-    int num_anchors = 6;
+    int num_classes = 9;
+    int num_anchors = 18;  // 9 classes × 2 directions (0° and 90°)
     int len_per_anchor = 4;
-    float anchors[24] = {
-            3.9,1.6,1.56,0.0,
-            3.9,1.6,1.56,1.57,
-            0.8,0.6,1.73,0.0,
-            0.8,0.6,1.73,1.57,
-            1.76,0.6,1.73,0.0,
-            1.76,0.6,1.73,1.57,
+    float anchors[72] = {
+            // 注意：这里需要根据实际训练的anchor配置来设置
+            // 当前为示例值，需要替换为实际的9分类anchor配置
+            3.9,1.6,1.56,0.0,  3.9,1.6,1.56,1.57,  // Mini_bus (2 directions)
+            3.9,1.6,1.56,0.0,  3.9,1.6,1.56,1.57,  // Large_bus (2 directions)
+            3.9,1.6,1.56,0.0,  3.9,1.6,1.56,1.57,  // Mini_truck (2 directions)
+            3.9,1.6,1.56,0.0,  3.9,1.6,1.56,1.57,  // Medium_truck (2 directions)
+            3.9,1.6,1.56,0.0,  3.9,1.6,1.56,1.57,  // Heavy_truck (2 directions)
+            3.9,1.6,1.56,0.0,  3.9,1.6,1.56,1.57,  // Extra_large_truck (2 directions)
+            3.9,1.6,1.56,0.0,  3.9,1.6,1.56,1.57,  // Container_truck (2 directions)
+            0.8,0.6,1.73,0.0,  0.8,0.6,1.73,1.57,  // Motorcycle (2 directions)
+            3.9,1.6,1.56,0.0,  3.9,1.6,1.56,1.57,  // Tractor (2 directions)
         };
-    nvtype::Float3 anchor_bottom_heights{-1.78,-0.6,-0.6};
+    float anchor_bottom_heights[9] = {-1.78, -1.78, -1.78, -1.78, -1.78, -1.78, -1.78, -0.6, -1.78};  // 9个类别的anchor底部高度
     int num_box_values = 7;
     float score_thresh = 0.1;
     float dir_offset = 0.78539;

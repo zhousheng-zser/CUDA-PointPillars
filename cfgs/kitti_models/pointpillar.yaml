@@ -1,4 +1,4 @@
-CLASS_NAMES: ['Car', 'Pedestrian', 'Cyclist']
+CLASS_NAMES: ['Mini_bus', 'Large_bus', 'Mini_truck', 'Medium_truck', 'Heavy_truck', 'Extra_large_truck', 'Container_truck', 'Motorcycle', 'Tractor']
 
 DATA_CONFIG: 
     _BASE_CONFIG_: cfgs/dataset_configs/kitti_dataset.yaml
@@ -21,22 +21,28 @@ DATA_CONFIG:
             'test': 40000
           }
     DATA_AUGMENTOR:
-        DISABLE_AUG_LIST: ['placeholder']
+        DISABLE_AUG_LIST: ['random_world_frustum_dropout', 'random_local_frustum_dropout', 'random_local_translation']
         AUG_CONFIG_LIST:
             - NAME: gt_sampling
-              USE_ROAD_PLANE: True
+              USE_ROAD_PLANE: False
               DB_INFO_PATH:
                   - kitti_dbinfos_train.pkl
               PREPARE: {
-                 filter_by_min_points: ['Car:5', 'Pedestrian:5', 'Cyclist:5'],
-                 filter_by_difficulty: [-1],
+                 filter_by_min_points: ['Mini_bus:5', 'Large_bus:5', 'Mini_truck:5', 'Medium_truck:5', 'Heavy_truck:5', 'Extra_large_truck:5', 'Container_truck:5', 'Motorcycle:5', 'Tractor:5'],
+                 filter_by_difficulty: [-1, 2],
               }
 
-              SAMPLE_GROUPS: ['Car:15','Pedestrian:15', 'Cyclist:15']
+              SAMPLE_GROUPS: ['Mini_bus:15','Large_bus:15','Mini_truck:15','Medium_truck:15','Heavy_truck:15','Extra_large_truck:15','Container_truck:15','Motorcycle:15','Tractor:15']
               NUM_POINT_FEATURES: 4
               DATABASE_WITH_FAKELIDAR: False
               REMOVE_EXTRA_WIDTH: [0.0, 0.0, 0.0]
               LIMIT_WHOLE_SCENE: False
+
+            - NAME: random_local_rotation
+              LOCAL_ROT_ANGLE: [-0.15707963267, 0.15707963267]
+
+            - NAME: random_local_scaling
+              LOCAL_SCALE_RANGE: [0.95, 1.05]
 
             - NAME: random_world_flip
               ALONG_AXIS_LIST: ['x']
@@ -46,6 +52,22 @@ DATA_CONFIG:
 
             - NAME: random_world_scaling
               WORLD_SCALE_RANGE: [0.95, 1.05]
+
+            - NAME: random_world_translation
+              WORLD_TRANSLATION_RANGE: [ -0.2, 0.2 ]
+              ALONG_AXIS_LIST: ['x', 'y', 'z']
+
+            - NAME: random_local_translation
+              LOCAL_TRANSLATION_RANGE: [0.95, 1.05]
+              ALONG_AXIS_LIST: ['x', 'y', 'z']
+
+            - NAME: random_world_frustum_dropout
+              INTENSITY_RANGE: [ 0, 0.2 ]
+              DIRECTION: ['top']
+
+            - NAME: random_local_frustum_dropout
+              INTENSITY_RANGE: [ 0, 0.2 ]
+              DIRECTION: ['top']
 
 MODEL:
     NAME: PointPillar
@@ -80,8 +102,8 @@ MODEL:
 
         ANCHOR_GENERATOR_CONFIG: [
             {
-                'class_name': 'Car',
-                'anchor_sizes': [[3.9, 1.6, 1.56]],
+                'class_name': 'Mini_bus',
+                'anchor_sizes': [[4.5, 2.0, 2.0]],
                 'anchor_rotations': [0, 1.57],
                 'anchor_bottom_heights': [-1.78],
                 'align_center': False,
@@ -90,8 +112,68 @@ MODEL:
                 'unmatched_threshold': 0.45
             },
             {
-                'class_name': 'Pedestrian',
-                'anchor_sizes': [[0.8, 0.6, 1.73]],
+                'class_name': 'Large_bus',
+                'anchor_sizes': [[12.0, 2.5, 3.5]],
+                'anchor_rotations': [0, 1.57],
+                'anchor_bottom_heights': [-1.78],
+                'align_center': False,
+                'feature_map_stride': 2,
+                'matched_threshold': 0.6,
+                'unmatched_threshold': 0.45
+            },
+            {
+                'class_name': 'Mini_truck',
+                'anchor_sizes': [[3.5, 1.8, 1.8]],
+                'anchor_rotations': [0, 1.57],
+                'anchor_bottom_heights': [-1.78],
+                'align_center': False,
+                'feature_map_stride': 2,
+                'matched_threshold': 0.6,
+                'unmatched_threshold': 0.45
+            },
+            {
+                'class_name': 'Medium_truck',
+                'anchor_sizes': [[5.5, 2.2, 2.5]],
+                'anchor_rotations': [0, 1.57],
+                'anchor_bottom_heights': [-1.78],
+                'align_center': False,
+                'feature_map_stride': 2,
+                'matched_threshold': 0.6,
+                'unmatched_threshold': 0.45
+            },
+            {
+                'class_name': 'Heavy_truck',
+                'anchor_sizes': [[7.5, 2.5, 3.0]],
+                'anchor_rotations': [0, 1.57],
+                'anchor_bottom_heights': [-1.78],
+                'align_center': False,
+                'feature_map_stride': 2,
+                'matched_threshold': 0.6,
+                'unmatched_threshold': 0.45
+            },
+            {
+                'class_name': 'Extra_large_truck',
+                'anchor_sizes': [[10.0, 2.8, 3.5]],
+                'anchor_rotations': [0, 1.57],
+                'anchor_bottom_heights': [-1.78],
+                'align_center': False,
+                'feature_map_stride': 2,
+                'matched_threshold': 0.6,
+                'unmatched_threshold': 0.45
+            },
+            {
+                'class_name': 'Container_truck',
+                'anchor_sizes': [[14.0, 2.8, 4.0]],
+                'anchor_rotations': [0, 1.57],
+                'anchor_bottom_heights': [-1.78],
+                'align_center': False,
+                'feature_map_stride': 2,
+                'matched_threshold': 0.6,
+                'unmatched_threshold': 0.45
+            },
+            {
+                'class_name': 'Motorcycle',
+                'anchor_sizes': [[1.8, 0.7, 1.5]],
                 'anchor_rotations': [0, 1.57],
                 'anchor_bottom_heights': [-0.6],
                 'align_center': False,
@@ -100,14 +182,14 @@ MODEL:
                 'unmatched_threshold': 0.35
             },
             {
-                'class_name': 'Cyclist',
-                'anchor_sizes': [[1.76, 0.6, 1.73]],
+                'class_name': 'Tractor',
+                'anchor_sizes': [[4.0, 2.0, 2.2]],
                 'anchor_rotations': [0, 1.57],
-                'anchor_bottom_heights': [-0.6],
+                'anchor_bottom_heights': [-1.5],
                 'align_center': False,
                 'feature_map_stride': 2,
-                'matched_threshold': 0.5,
-                'unmatched_threshold': 0.35
+                'matched_threshold': 0.6,
+                'unmatched_threshold': 0.45
             }
         ]
 
