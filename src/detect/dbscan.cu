@@ -20,7 +20,8 @@ namespace detect {
 __global__ void compute_neighbor_counts_kernel(
     const float* points,      // [n, 3] - 点云数据
     int n,                   // 点的数量
-    float eps_squared,       // eps^2 (避免开方)
+    float eps_xy_squared,    // eps_xy^2 (xy平面距离的平方)
+    float eps_z,             // eps_z (z方向距离阈值)
     int* neighbor_counts)    // 输出：每个点的邻居数量
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -36,9 +37,12 @@ __global__ void compute_neighbor_counts_kernel(
         float dx = query_point[0] - other_point[0];
         float dy = query_point[1] - other_point[1];
         float dz = query_point[2] - other_point[2];
-        float dist_sq = dx * dx + dy * dy + dz * dz;
         
-        if (dist_sq <= eps_squared) {
+        // 分别判断 xy 平面距离和 z 方向距离
+        float xy_dist_sq = dx * dx + dy * dy;
+        float z_dist_abs = fabsf(dz);
+        
+        if (xy_dist_sq <= eps_xy_squared && z_dist_abs <= eps_z) {
             count++;
         }
     }
@@ -67,7 +71,8 @@ __global__ void mark_core_points_kernel(
 __global__ void find_neighbors_kernel(
     const float* points,
     int n,
-    float eps_squared,
+    float eps_xy_squared,    // eps_xy^2 (xy平面距离的平方)
+    float eps_z,             // eps_z (z方向距离阈值)
     int* neighbor_offsets,    // 每个点的邻居在 neighbor_indices 中的起始位置
     int* neighbor_indices)    // 所有邻居的索引（压缩存储）
 {
@@ -85,9 +90,12 @@ __global__ void find_neighbors_kernel(
         float dx = query_point[0] - other_point[0];
         float dy = query_point[1] - other_point[1];
         float dz = query_point[2] - other_point[2];
-        float dist_sq = dx * dx + dy * dy + dz * dz;
         
-        if (dist_sq <= eps_squared) {
+        // 分别判断 xy 平面距离和 z 方向距离
+        float xy_dist_sq = dx * dx + dy * dy;
+        float z_dist_abs = fabsf(dz);
+        
+        if (xy_dist_sq <= eps_xy_squared && z_dist_abs <= eps_z) {
             neighbor_indices[offset + count] = i;
             count++;
         }
@@ -98,7 +106,8 @@ __global__ void find_neighbors_kernel(
 void dbscan_filter_cuda(
     std::vector<nvtype::Float3>& points_in_box,
     std::vector<std::array<float, 4>>& box_points,
-    float eps,
+    float eps_xy,
+    float eps_z,
     float max_cluster_ratio,
     float z_threshold,
     void* stream_ptr)
@@ -131,7 +140,7 @@ void dbscan_filter_cuda(
     thrust::device_vector<int> d_neighbor_counts(n);
     thrust::device_vector<int> d_labels(n, -1);
     
-    float eps_squared = eps * eps;
+    float eps_xy_squared = eps_xy * eps_xy;
     
     // Kernel 1: 计算每个点的邻居数量
     const int threads_per_block = 256;
@@ -140,7 +149,8 @@ void dbscan_filter_cuda(
     compute_neighbor_counts_kernel<<<blocks, threads_per_block, 0, stream>>>(
         thrust::raw_pointer_cast(d_points.data()),
         n,
-        eps_squared,
+        eps_xy_squared,
+        eps_z,
         thrust::raw_pointer_cast(d_neighbor_counts.data())
     );
     checkRuntime(cudaGetLastError());
@@ -177,7 +187,8 @@ void dbscan_filter_cuda(
     find_neighbors_kernel<<<blocks, threads_per_block, 0, stream>>>(
         thrust::raw_pointer_cast(d_points.data()),
         n,
-        eps_squared,
+        eps_xy_squared,
+        eps_z,
         thrust::raw_pointer_cast(d_neighbor_offsets.data()),
         thrust::raw_pointer_cast(d_neighbor_indices.data())
     );

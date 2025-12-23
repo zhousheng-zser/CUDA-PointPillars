@@ -58,7 +58,8 @@ struct RangeConfig {
 
     // DBSCAN clustering configuration
     bool use_dbscan = true;              // 是否启用 DBSCAN 聚类
-    float dbscan_eps = 0.25f;              // DBSCAN 邻域半径（米）
+    float dbscan_eps_xy = 1.5f;          // DBSCAN XY平面邻域半径（米）- x,y方向允许更大的距离
+    float dbscan_eps_z = 0.2f;           // DBSCAN Z方向邻域半径（米）- z方向要求更严格
     float dbscan_max_cluster_ratio = 0.05f; // 最大簇比例阈值：点数小于最大簇*此比例的簇可能被删除
     float dbscan_z_threshold = 0.19f;       // Z值阈值（米）：如果簇的平均z值 > 主簇平均z值 + 此阈值，则删除（用于过滤树叶等高空噪声）
 };

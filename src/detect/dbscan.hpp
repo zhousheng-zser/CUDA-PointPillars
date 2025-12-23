@@ -140,6 +140,38 @@ public:
         radius_search_recursive(root_, query, eps_squared, result);
     }
     
+    // 半径搜索（支持分别的 xy 和 z 距离）：找到满足 xy <= eps_xy 且 |z| <= eps_z 的所有点
+    void radius_search_xy_z(int query_idx, float eps_xy, float eps_z, std::vector<int>& result) const {
+        result.clear();
+        if (root_ == nullptr || query_idx < 0 || query_idx >= (int)points_->size()) {
+            return;
+        }
+        
+        // 使用 max(eps_xy, eps_z) 作为搜索半径，确保不遗漏任何点
+        float search_eps = std::max(eps_xy, eps_z);
+        float search_eps_squared = search_eps * search_eps;
+        const nvtype::Float3& query = (*points_)[query_idx];
+        
+        // 先进行常规搜索
+        std::vector<int> candidates;
+        radius_search_recursive(root_, query, search_eps_squared, candidates);
+        
+        // 然后过滤：只保留满足 xy <= eps_xy 且 |z| <= eps_z 的点
+        float eps_xy_squared = eps_xy * eps_xy;
+        for (int idx : candidates) {
+            const nvtype::Float3& p = (*points_)[idx];
+            float dx = query.x - p.x;
+            float dy = query.y - p.y;
+            float dz = query.z - p.z;
+            float xy_dist_sq = dx * dx + dy * dy;
+            float z_dist_abs = std::abs(dz);
+            
+            if (xy_dist_sq <= eps_xy_squared && z_dist_abs <= eps_z && idx != query_idx) {
+                result.push_back(idx);
+            }
+        }
+    }
+    
     // 兼容旧接口
     std::vector<int> radius_search(int query_idx, float eps) const {
         std::vector<int> result;
@@ -157,10 +189,13 @@ public:
 // 相比 O(n²) 的 225,000,000 次操作，性能提升约 1000 倍
 // 直接修改传入的 points_in_box 和 box_points（若过滤后为空则清空），无返回值
 // 使用 inline 避免多个编译单元重复定义
+// eps_xy: xy平面邻域半径，允许x,y方向更大的距离
+// eps_z: z方向邻域半径，要求z方向更严格的距离
 inline void dbscan_filter(
     std::vector<nvtype::Float3>& points_in_box,
     std::vector<std::array<float, 4>>& box_points,
-    float eps,
+    float eps_xy,
+    float eps_z,
     float max_cluster_ratio,
     float z_threshold)
 {
@@ -191,10 +226,10 @@ inline void dbscan_filter(
     std::vector<std::vector<int>> neighbors_cache(n);
     std::vector<bool> neighbors_computed(n, false);
     
-    // 找到点的所有邻居（在 eps 范围内）- 使用 KD-tree 优化：O(log n + k)
+    // 找到点的所有邻居（满足 xy <= eps_xy 且 |z| <= eps_z）- 使用 KD-tree 优化：O(log n + k)
     auto get_neighbors = [&](int point_idx) -> const std::vector<int>& {
         if (!neighbors_computed[point_idx]) {
-            kdtree.radius_search(point_idx, eps, neighbors_cache[point_idx]);
+            kdtree.radius_search_xy_z(point_idx, eps_xy, eps_z, neighbors_cache[point_idx]);
             neighbors_computed[point_idx] = true;
         }
         return neighbors_cache[point_idx];
@@ -321,10 +356,13 @@ inline void dbscan_filter(
 // 使用 GPU 并行计算邻居搜索，显著提升性能
 // 对于大量点云（>1000点），CUDA 版本通常比 CPU 版本快 5-20 倍
 // 参数 stream 可以是 cudaStream_t 或 void*（根据编译环境自动适配）
+// eps_xy: xy平面邻域半径，允许x,y方向更大的距离
+// eps_z: z方向邻域半径，要求z方向更严格的距离
 void dbscan_filter_cuda(
     std::vector<nvtype::Float3>& points_in_box,
     std::vector<std::array<float, 4>>& box_points,
-    float eps,
+    float eps_xy,
+    float eps_z,
     float max_cluster_ratio,
     float z_threshold,
     void* stream = nullptr);

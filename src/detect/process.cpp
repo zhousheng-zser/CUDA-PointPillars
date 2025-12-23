@@ -329,11 +329,11 @@ void calib_3d_box(const std::vector<float> &points_filtered,
         
         if (num_points >= cuda_threshold) {
             // 使用 CUDA 加速版本（对于大量点云）
-            dbscan_filter_cuda(points_in_box, box.points, cfg_dbscan.dbscan_eps,
+            dbscan_filter_cuda(points_in_box, box.points, cfg_dbscan.dbscan_eps_xy, cfg_dbscan.dbscan_eps_z,
                 cfg_dbscan.dbscan_max_cluster_ratio, cfg_dbscan.dbscan_z_threshold, nullptr);
         } else {
             // 使用 CPU 版本（对于少量点云）
-            dbscan_filter(points_in_box, box.points, cfg_dbscan.dbscan_eps,
+            dbscan_filter(points_in_box, box.points, cfg_dbscan.dbscan_eps_xy, cfg_dbscan.dbscan_eps_z,
                 cfg_dbscan.dbscan_max_cluster_ratio, cfg_dbscan.dbscan_z_threshold);
         }
     }

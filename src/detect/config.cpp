@@ -180,12 +180,14 @@ void RangeConfigSingleton::initializeConfig(RangeConfig& config, const std::stri
                 if (j.contains("dbscan") && j["dbscan"].is_object()) {
                     const auto& dbscan = j["dbscan"];
                     if (dbscan.contains("use_dbscan")) config.use_dbscan = dbscan["use_dbscan"].get<bool>();
-                    if (dbscan.contains("eps")) config.dbscan_eps = dbscan["eps"].get<float>();
+                    if (dbscan.contains("eps_xy")) config.dbscan_eps_xy = dbscan["eps_xy"].get<float>();
+                    if (dbscan.contains("eps_z")) config.dbscan_eps_z = dbscan["eps_z"].get<float>();
                     if (dbscan.contains("max_cluster_ratio")) config.dbscan_max_cluster_ratio = dbscan["max_cluster_ratio"].get<float>();
                     if (dbscan.contains("z_threshold")) config.dbscan_z_threshold = dbscan["z_threshold"].get<float>();
                 } else {
                     config.use_dbscan = false;
-                    config.dbscan_eps = 0.25f;
+                    config.dbscan_eps_xy = 1.5f;
+                    config.dbscan_eps_z = 0.2f;
                     config.dbscan_max_cluster_ratio = 0.05f;
                     config.dbscan_z_threshold = 0.19f;
                 }
@@ -230,7 +232,8 @@ void RangeConfigSingleton::initializeConfig(RangeConfig& config, const std::stri
         config.line2_config.end_y = -14.0f;
         config.line2_config.end_z = -3.5f;
         config.use_dbscan = true;
-        config.dbscan_eps = 0.25f;
+        config.dbscan_eps_xy = 1.5f;
+        config.dbscan_eps_z = 0.2f;
         config.dbscan_max_cluster_ratio = 0.1f;
         config.dbscan_z_threshold = 0.2f;
     }
