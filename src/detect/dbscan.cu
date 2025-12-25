@@ -314,6 +314,13 @@ void dbscan_filter_cuda(
                 filtered_points.push_back(points_in_box[i]);
                 filtered_indices.push_back(i);
             }
+            // else //  调试用
+            // {
+            //     // 不满足条件但仍需保留，将强度改为 -2 标记
+            //     box_points[i][3] = -2.0f;
+            //     filtered_points.push_back(points_in_box[i]);
+            //     filtered_indices.push_back(i);
+            // }
         }
     }
     

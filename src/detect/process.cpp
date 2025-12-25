@@ -196,6 +196,28 @@ void pre_processing(std::vector<float> &src, std::vector<float> &points_filtered
         }
     }
     
+    // 对 points_filtered 按 z 值从大到小快速排序
+    int num_points = points_filtered.size() / 4;
+    if (num_points > 0) {
+        std::vector<int> indices(num_points);
+        for (int i = 0; i < num_points; ++i) {
+            indices[i] = i;
+        }
+        // 按 z 值从大到小排序索引
+        std::sort(indices.begin(), indices.end(), [&points_filtered](int a, int b) {
+            return points_filtered[a * 4 + 2] > points_filtered[b * 4 + 2];  // 按 z 值降序
+        });
+        // 重新排列 points_filtered
+        std::vector<float> temp = points_filtered;
+        for (int i = 0; i < num_points; ++i) {
+            int orig_idx = indices[i];
+            points_filtered[i * 4 + 0] = temp[orig_idx * 4 + 0];
+            points_filtered[i * 4 + 1] = temp[orig_idx * 4 + 1];
+            points_filtered[i * 4 + 2] = temp[orig_idx * 4 + 2];
+            points_filtered[i * 4 + 3] = temp[orig_idx * 4 + 3];
+        }
+    }
+    
     // 求地
     // segment_plane_ransac(points_filtered, 0.05f, 3,100000);
 }
@@ -302,9 +324,9 @@ void calib_3d_box(const std::vector<float> &points_filtered,
     // 注意：boxCorners 中 w 对应旋转后的 x 坐标，l 对应旋转后的 y 坐标
     // point_in_3d_box 中 range_x 用于 local_x 判断，range_y 用于 local_y 判断
      // 边长*1.2  扩大一点点  防止检测框小  
-    cfg.range_x = box.w * 0.5f+std::min(box.w*0.1f, 0.5f);  // w 对应 x 方向（point_in_3d_box 中会乘以2）
-    cfg.range_y = box.l * 0.5f+std::min(box.l*0.1f, 0.5f);  // l 对应 y 方向（point_in_3d_box 中会乘以2）
-    cfg.range_z = box.h * (1.0f+0.2f);  // h 对应 z 方向（高度，不是半高）
+    cfg.range_x = box.w * 0.5f+std::min(box.w*0.05f, 0.5f);  // w 对应 x 方向（point_in_3d_box 中会乘以2）
+    cfg.range_y = box.l * 0.5f+std::min(box.l*0.05f, 0.5f);  // l 对应 y 方向（point_in_3d_box 中会乘以2）
+    cfg.range_z = box.h * 1.0f+std::min(box.h*0.2f, 0.5f);  // h 对应 z 方向（高度，不是半高）
     cfg.ry = box.rt;  // 旋转角度（都是绕Z轴旋转，在雷达坐标系XY平面内）
     // 筛选点云中属于ROI框的点
     std::vector<nvtype::Float3> points_in_box;
@@ -323,19 +345,58 @@ void calib_3d_box(const std::vector<float> &points_filtered,
     
     // DBSCAN 聚类过滤（如果启用）
     const auto& cfg_dbscan = get_config();
-    if (cfg_dbscan.use_dbscan) {
-        int num_points = points_in_box.size();
-        const int cuda_threshold = 500;  // 点数 >= 500 时使用 CUDA 版本
+    if (cfg_dbscan.use_dbscan && !points_in_box.empty()) {
+        // 优化策略：只对前30%的点（z值最高的点）进行DBSCAN，其余70%直接保留
+        // 由于 points_filtered 已经按 z 值从大到小排序，points_in_box 也是按 z 值从大到小的顺序
+        int total_points = points_in_box.size();
+        int dbscan_points_count = static_cast<int>(total_points * 0.3f);  // 前30%的点
         
-        if (num_points >= cuda_threshold) {
-            // 使用 CUDA 加速版本（对于大量点云）
-            dbscan_filter_cuda(points_in_box, box.points, cfg_dbscan.dbscan_eps_xy, cfg_dbscan.dbscan_eps_z,
-                cfg_dbscan.dbscan_max_cluster_ratio, cfg_dbscan.dbscan_z_threshold, nullptr);
-        } else {
-            // 使用 CPU 版本（对于少量点云）
-            dbscan_filter(points_in_box, box.points, cfg_dbscan.dbscan_eps_xy, cfg_dbscan.dbscan_eps_z,
-                cfg_dbscan.dbscan_max_cluster_ratio, cfg_dbscan.dbscan_z_threshold);
+        // 分割点云：前30%（高z值，进行DBSCAN）和后70%（低z值，直接保留）
+        std::vector<nvtype::Float3> points_lower;  // 后70%，直接保留
+        std::vector<nvtype::Float3> points_upper;  // 前30%，进行DBSCAN
+        std::vector<std::array<float, 4>> box_points_lower;
+        std::vector<std::array<float, 4>> box_points_upper;
+        
+        for (size_t i = 0; i < points_in_box.size(); ++i) {
+            if (i < static_cast<size_t>(dbscan_points_count)) {
+                // 前30%：需要DBSCAN处理
+                points_upper.push_back(points_in_box[i]);
+                box_points_upper.push_back(box.points[i]);
+            } else {
+                // 后70%：直接保留
+                points_lower.push_back(points_in_box[i]);
+                box_points_lower.push_back(box.points[i]);
+            }
         }
+        // 只对前30%进行DBSCAN
+        if (!points_upper.empty()) {
+            int num_points_upper = points_upper.size();
+            const int cuda_threshold = 500;  // 点数 >= 500 时使用 CUDA 版本
+            
+            if (num_points_upper >= cuda_threshold) {
+                // 使用 CUDA 加速版本（对于大量点云）
+                dbscan_filter_cuda(points_upper, box_points_upper, cfg_dbscan.dbscan_eps_xy, cfg_dbscan.dbscan_eps_z,
+                    cfg_dbscan.dbscan_max_cluster_ratio, cfg_dbscan.dbscan_z_threshold, nullptr);
+            } else {
+                // 使用 CPU 版本（对于少量点云）
+                dbscan_filter(points_upper, box_points_upper, cfg_dbscan.dbscan_eps_xy, cfg_dbscan.dbscan_eps_z,
+                    cfg_dbscan.dbscan_max_cluster_ratio, cfg_dbscan.dbscan_z_threshold);
+            }
+        }
+        
+        // 合并结果：下半部分（全部保留）+ 上半部分（DBSCAN过滤后）
+        points_in_box.clear();
+        box.points.clear();
+        points_in_box.reserve(points_lower.size() + points_upper.size());
+        box.points.reserve(box_points_lower.size() + box_points_upper.size());
+        
+        // 先添加下半部分
+        points_in_box.insert(points_in_box.end(), points_lower.begin(), points_lower.end());
+        box.points.insert(box.points.end(), box_points_lower.begin(), box_points_lower.end());
+        
+        // 再添加上半部分（DBSCAN过滤后）
+        points_in_box.insert(points_in_box.end(), points_upper.begin(), points_upper.end());
+        box.points.insert(box.points.end(), box_points_upper.begin(), box_points_upper.end());
     }
     
     if (points_in_box.empty()) {
