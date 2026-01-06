@@ -112,7 +112,7 @@ void loop_get_lidar_data()
 
     // Track last successful data reception time
     auto last_data_time = std::chrono::steady_clock::now();
-    const auto timeout_duration = std::chrono::minutes(5); // 5 minutes timeout
+    const auto timeout_duration = std::chrono::minutes(2); // 5 minutes timeout
 
     while (running) {
         try {
@@ -197,11 +197,11 @@ http_server::DetectionResult handle_detection_request(const std::string& unique_
     tracking::MultiObjectTracker::BestResult best={0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f};
     std::vector<std::array<float, 4>> rendered_points;
     bool flag =mot->set_unique_id_for_closest_vehicle(unique_id, road_id,rendered_points); //去设置unique_id
-    // if( !flag )
-    // {
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(150));  //再给一次机会 
-    //     flag = mot->set_unique_id_for_closest_vehicle(unique_id, road_id,rendered_points);
-    // }
+    if( !flag )
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(150));  //再给一次机会 
+        flag = mot->set_unique_id_for_closest_vehicle(unique_id, road_id,rendered_points);
+    }
     if(flag)
     {
         int T = 10;   // 10*200ms = 2s

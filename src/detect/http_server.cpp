@@ -17,6 +17,9 @@
 #include <sys/types.h>
 #include <mutex>
 #include <chrono>
+#include <dirent.h>
+#include <unistd.h>
+#include <regex>
 
 using json = nlohmann::json;
 using namespace hv;
@@ -42,6 +45,67 @@ static std::string get_log_filename() {
     return filename_stream.str();
 }
 
+// 删除30天前的日志文件
+static void delete_old_log_files() {
+    DIR* dir = opendir("log");
+    if (dir == nullptr) {
+        return;  // log目录不存在，直接返回
+    }
+    
+    // 获取当前时间
+    std::time_t now = std::time(nullptr);
+    std::tm* now_tm = std::localtime(&now);
+    
+    // 计算30天前的时间戳
+    std::tm cutoff_tm = *now_tm;
+    cutoff_tm.tm_mday -= 30;
+    std::time_t cutoff_time = std::mktime(&cutoff_tm);
+    
+    // 正则表达式匹配日志文件名格式：yyyy-mm-dd_tt.log
+    std::regex log_pattern(R"((\d{4})-(\d{2})-(\d{2})_(\d{2})\.log)");
+    
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        std::string filename = entry->d_name;
+        
+        // 跳过 . 和 ..
+        if (filename == "." || filename == "..") {
+            continue;
+        }
+        
+        // 检查文件名是否匹配日志格式
+        std::smatch match;
+        if (std::regex_match(filename, match, log_pattern)) {
+            // 解析日期
+            int year = std::stoi(match[1].str());
+            int month = std::stoi(match[2].str());
+            int day = std::stoi(match[3].str());
+            
+            // 构建时间结构
+            std::tm file_tm = {};
+            file_tm.tm_year = year - 1900;
+            file_tm.tm_mon = month - 1;
+            file_tm.tm_mday = day;
+            file_tm.tm_hour = 0;
+            file_tm.tm_min = 0;
+            file_tm.tm_sec = 0;
+            
+            // 转换为时间戳
+            std::time_t file_time = std::mktime(&file_tm);
+            
+            // 如果文件日期早于30天前，删除它
+            if (file_time < cutoff_time) {
+                std::string filepath = "log/" + filename;
+                if (unlink(filepath.c_str()) == 0) {
+                    // 删除成功（可选：记录日志）
+                }
+            }
+        }
+    }
+    
+    closedir(dir);
+}
+
 // 确保日志文件已打开（如果小时变化则切换文件）
 static void ensure_log_file_open() {
     std::string log_filename = get_log_filename();
@@ -58,6 +122,9 @@ static void ensure_log_file_open() {
         if (stat("log", &info) != 0) {
             mkdir("log", 0755);
         }
+        
+        // 删除30天前的日志文件
+        delete_old_log_files();
         
         // 打开新文件（追加模式）
         g_log_file.open(log_filename, std::ios::app);
