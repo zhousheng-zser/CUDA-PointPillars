@@ -3,7 +3,7 @@ build
 build_unix
 ckpts
 data
-model/*
+model*
 workspace
 **/__pycache__
 .vs

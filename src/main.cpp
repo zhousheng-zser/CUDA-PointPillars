@@ -24,6 +24,7 @@
 #include <fstream>
 #include <dirent.h>
 #include <array>
+#include <algorithm>
 
 #include "pointpillar.hpp"
 #include "common/check.hpp"
@@ -359,6 +360,13 @@ int main(int argc, char** argv) {
         std::cout << "Lidar points count: "<< points_size <<std::endl;
     
         auto bboxes = core->forward((float *)buffer.get(), points_size, stream);
+        // 过滤掉置信度过低的框
+        bboxes.erase(
+            std::remove_if(
+                bboxes.begin(),
+                bboxes.end(),
+                [](const pointpillar::lidar::BoundingBox& box) { return box.score < 0.25f; }),
+            bboxes.end());
 
         // 把ROI 区域添加进框里面
         {

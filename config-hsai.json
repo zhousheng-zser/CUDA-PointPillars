@@ -52,5 +52,7 @@
       "end_x": 0.0,
       "end_y": -14.0,
       "end_z": -3.5
-    }
+    },
+    "data_points_type": 0,
+    "points_file_path": "/mnt/data/sda/ocm_3/"
   }
