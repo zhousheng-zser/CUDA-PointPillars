@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>点云可视化 - Point Cloud Viewer</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="./OrbitControls.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         
@@ -787,12 +787,27 @@
             renderer.setSize(container.clientWidth, container.clientHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 限制像素比以提高性能
             renderer.setClearColor(0x1a1a1a, 1);
+            
+            // 确保canvas可以接收鼠标事件
+            renderer.domElement.style.touchAction = 'none';
+            renderer.domElement.style.userSelect = 'none';
+            renderer.domElement.style.cursor = 'grab';
+            
             container.appendChild(renderer.domElement);
             
             console.log('渲染器已创建，尺寸:', container.clientWidth, container.clientHeight);
 
             // 添加轨道控制器
-            try {
+            function initOrbitControls() {
+                try {
+                    if (typeof THREE.OrbitControls === 'undefined') {
+                        console.error('OrbitControls未加载，请检查CDN链接');
+                        updateStatus('警告: OrbitControls未正确加载，鼠标旋转可能不可用', 'error');
+                        // 重试
+                        setTimeout(initOrbitControls, 500);
+                        return;
+                    }
+                    
                 controls = new THREE.OrbitControls(camera, renderer.domElement);
                 controls.enableDamping = true;
                 controls.dampingFactor = 0.05;
@@ -811,10 +826,37 @@
                 // 允许无限旋转
                 controls.autoRotate = false;
                 
-                console.log('OrbitControls 已创建');
+                    // 确保鼠标事件正确绑定（Three.js r128）
+                    if (controls.mouseButtons) {
+                        controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+                        controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
+                        controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+                    }
+                    
+                    // 添加鼠标事件监听器用于调试
+                    renderer.domElement.addEventListener('mousedown', function(e) {
+                        console.log('鼠标按下事件:', e.button, e.clientX, e.clientY);
+                    });
+                    
+                    renderer.domElement.addEventListener('mousemove', function(e) {
+                        if (e.buttons === 1) {
+                            renderer.domElement.style.cursor = 'grabbing';
+                        }
+                    });
+                    
+                    renderer.domElement.addEventListener('mouseup', function() {
+                        renderer.domElement.style.cursor = 'grab';
+                    });
+                    
+                    console.log('OrbitControls 已创建并初始化');
             } catch (error) {
                 console.error('创建 OrbitControls 失败:', error);
+                    updateStatus('错误: 无法初始化鼠标控制', 'error');
+                }
             }
+            
+            // 延迟初始化，确保OrbitControls已加载
+            setTimeout(initOrbitControls, 200);
 
             // 添加坐标轴（更大更明显）
             const axesHelper = new THREE.AxesHelper(50);
@@ -1391,7 +1433,30 @@
                         controls.minDistance = distance * 0.1;
                         controls.maxDistance = distance * 5;
                         controls.update();
+                    } else {
+                        // 如果controls未初始化，尝试重新初始化
+                        console.warn('Controls未初始化，尝试重新初始化...');
+                        setTimeout(function() {
+                            if (typeof THREE.OrbitControls !== 'undefined' && !controls) {
+                                controls = new THREE.OrbitControls(camera, renderer.domElement);
+                                controls.enableDamping = true;
+                                controls.dampingFactor = 0.05;
+                                controls.enablePan = true;
+                                controls.enableZoom = true;
+                                controls.enableRotate = true;
+                                controls.target.copy(center);
+                                controls.minDistance = distance * 0.1;
+                                controls.maxDistance = distance * 5;
+                                console.log('Controls已重新初始化');
+                            }
+                        }, 100);
                     }
+                }
+                
+                // 确保canvas可以接收鼠标事件
+                if (renderer && renderer.domElement) {
+                    renderer.domElement.style.pointerEvents = 'auto';
+                    renderer.domElement.style.cursor = 'grab';
                 }
                 
                 updateStatus(`成功加载 ${data.count} 个点`, 'success');
