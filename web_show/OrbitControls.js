@@ -1,10 +1,4 @@
-(function() {
-
-	// �?? TrackballControls 不同，它保留了“向上”方向对�??.up（默认情况下�?? +Y）�?
-	//
-	// 轨道 - 鼠标左键/触摸：单指移�??
-	// 缩放 - 鼠标中键或鼠标滚�?? / 触摸：双指张开或挤�??
-	// 平移 - 右键，或左键 + Ctrl/Meta/Shift 键，或方向键 / 触摸：双指移�??
+( function () {
 
 	const _changeEvent = {
 		type: 'change'
@@ -21,274 +15,80 @@
 		constructor( object, domElement ) {
 
 			super();
-			if ( domElement === undefined ) console.warn( 'THREE.OrbitControls: 第二个参数“domElement”现在是必需的�?' );
-			if ( domElement === document ) console.error( 'THREE.OrbitControls: "document" 不应用作目标 "domElement"。请改用 "renderer.domElement"�??' );
+
+			if ( domElement === undefined ) console.warn( 'THREE.OrbitControls: The second parameter "domElement" is now mandatory.' );
+			if ( domElement === document ) console.error( 'THREE.OrbitControls: "document" should not be used as the target "domElement". Please use "renderer.domElement" instead.' );
+
 			this.object = object;
-			this.domElement = domElement; // 设置�?? false 可禁用此控件
+			this.domElement = domElement; // API
 
-			this.enabled = true; // "target" 设置焦点位置，即物体围绕其旋转的位置�??
-
-			this.target = new THREE.Vector3(); // 可推拉的距离（仅限透视相机�??
+			this.enabled = true;
+			this.target = new THREE.Vector3(); // deprecated
 
 			this.minDistance = 0;
-			this.maxDistance = Infinity; // 最大缩放距离（仅限正交相机�??
+			this.maxDistance = Infinity; // deprecated
 
 			this.minZoom = 0;
-			this.maxZoom = Infinity; // 垂直方向上可以旋转的最大距离，上限和下限�?
-			// 范围�?? 0 �?? Math.PI 弧度�??
+			this.maxZoom = Infinity; // deprecated
 
-			this.minPolarAngle = 0; // 弧度
+			this.minPolarAngle = 0; // radians
+			this.maxPolarAngle = Math.PI; // radians
 
-			this.maxPolarAngle = Math.PI; // 弧度
-			// 水平轨道飞行的上限和下限�??
-			// 如果设置，区�?? [ min, max ] 必须是区�?? [ - 2 PI, 2 PI ] 的子区间，且 ( max - min < 2 PI )�??
-
-			this.minAzimuthAngle = - Infinity; // 弧度
-
-			this.maxAzimuthAngle = Infinity; // 弧度
-			// 设置�?? true 以启用阻尼（惯性）
-			// 如果启用了阻尼，则必须在动画循环中调�?? controls.update()
+			this.minAzimuthAngle = - Infinity; // radians
+			this.maxAzimuthAngle = Infinity; // radians
 
 			this.enableDamping = false;
-			this.dampingFactor = 0.05; // 此选项实际上启用推拉镜头；保留为“zoom”是为了向后兼容�??
-			// 设置�?? false 可禁用缩放功能�?
+			this.dampingFactor = 0.05;
 
 			this.enableZoom = true;
-			this.zoomSpeed = 1.0; // 设置�?? false 可禁用旋�??
+			this.zoomSpeed = 1.0;
 
 			this.enableRotate = true;
-			this.rotateSpeed = 1.0; // 设置�?? false 可禁用平�??
+			this.rotateSpeed = 1.0;
 
 			this.enablePan = true;
 			this.panSpeed = 1.0;
-			this.screenSpacePanning = true; // 如果�?? false，则垂直于世界空间方向平�?? camera.up
+			this.screenSpacePanning = true; // if false, pan orthogonal to world-space direction of camera.up
 
-			this.keyPanSpeed = 7.0; // 每次按下方向键移动的像素�??
-			// 设置�?? true 可自动围绕目标旋�??
-			// 如果启用了自动旋转，则必须在动画循环中调�?? controls.update()
+			this.keyPanSpeed = 7.0; // pixels per keypress
 
 			this.autoRotate = false;
-			this.autoRotateSpeed = 2.0; // 当帧率为 60 时，每圈旋转 30 �??
-			四个方向�??
+			this.autoRotateSpeed = 2.0; // 30 seconds per round when fps is 60
 
+			this.enableKeys = true;
 			this.keys = {
-				左：'向左箭头'�??
-				向上�??'向上箭头'
-				右箭头：'ArrowRight'
-				底部�??'向下箭头'
-			}; // 鼠标按钮
+				LEFT: 'ArrowLeft',
+				UP: 'ArrowUp',
+				RIGHT: 'ArrowRight',
+				BOTTOM: 'ArrowDown'
+			};
 
 			this.mouseButtons = {
-				左：�??.鼠标.旋转�??
-				中间：三只小老鼠娃娃
-				右：�??.鼠标.平移
-			}; // 触摸手指
+				LEFT: THREE.MOUSE.ROTATE,
+				MIDDLE: THREE.MOUSE.DOLLY,
+				RIGHT: THREE.MOUSE.PAN
+			};
 
 			this.touches = {
-				一：三.触摸.旋转�??
-				二：�??.触摸.推拉�??
-			}; // 用于重置
-
-			this.target0 = this.target.clone();
-			this.position0 = this.object.position.clone();
-			this.zoom0 = this.object.zoom; // 关键事件的目�?? DOM 元素
-
-			this._domElementKeyEvents = null; //
-			// 公共方法
-			//
-
-			this.getPolarAngle = function () {
-
-				返回 spherical.phi�??
-
-			};
-
-			this.getAzimuthalAngle = function () {
-
-				返回 spherical.theta�??
-
-			};
-
-			this.listenToKeyEvents = function ( domElement ) {
-
-				domElement.addEventListener('keydown', onKeyDown);
-				this._domElementKeyEvents = domElement;
-
-			};
-
-			this.saveState = function () {
-
-				scope.target0.copy( scope.target );
-				scope.position0.copy( scope.object.position );
-				scope.zoom0 = scope.object.zoom;
-
-			};
-
-			this.reset = function () {
-
-				scope.target.copy( scope.target0 );
-				scope.object.position.copy( scope.position0 );
-				scope.object.zoom = scope.zoom0;
-				scope.object.updateProjectionMatrix();
-				scope.dispatchEvent( _changeEvent );
-				作用域更�??();
-				状�? = STATE.NONE;
-
-			}; // 这个方法是公开的，但如果我们能把它设为私有方法，或许会更好…�?
-
-
-			this.update = function () {
-
-				const offset = new THREE.Vector3(); // 因此 camera.up 是轨道轴
-
-				const quat = new THREE.Quaternion().setFromUnitVectors( object.up, new THREE.Vector3( 0, 1, 0 ) );
-				const quatInverse = quat.clone().invert();
-				const lastPosition = new THREE.Vector3();
-				const lastQuaternion = new THREE.Quaternion();
-				const twoPI = 2 * Math.PI;
-				返回函数 update() {
-
-					const position = scope.object.position;
-					offset.copy(position).sub(scope.target); // 将偏移量旋转到“y轴向上”的空间
-
-					offset.applyQuaternion(quat); // �?? z 轴绕 y 轴的角度
-
-					spherical.setFromVector3( offset );
-
-					如果 ( scope.autoRotate && state === STATE.NONE ) {
-
-						rotateLeft(getAutoRotationAngle());
-
-					}
-
-					如果 ( scope.enableDamping ) {
-
-						球面.θ += 球面Δ.θ * 阻尼因子;
-						球面.phi += 球面Delta.phi * scope.dampingFactor;
-
-					} 别的 {
-
-						球面θ += 球面Δθ;
-						球面.phi += 球面Delta.phi;
-
-					} // �?? theta 限制在所需范围�??
-
-
-					�?? min =scope.minAzimuthAngle;
-					let max = scope.maxAzimuthAngle;
-
-					如果 ( isFinite( min ) && isFinite( max ) ) {
-
-						如果 ( min < - Math.PI ) min += twoPI; 否则如果 ( min > Math.PI ) min -= twoPI;
-						如果 ( max < - Math.PI ) max += twoPI; 否则如果 ( max > Math.PI ) max -= twoPI;
-
-						如果（最小�? <= 最大值）{
-
-							spherical.theta = Math.max( min, Math.min( max, spherical.theta ) );
-
-						} 别的 {
-
-							spherical.theta = spherical.theta > ( min + max ) / 2 ? Math.max( min, spherical.theta ) : Math.min( max, spherical.theta );
-
-						}
-
-					} // �?? phi 限制在所需范围�??
-
-
-					spherical.phi = Math.max( scope.minPolarAngle, Math.min( scope.maxPolarAngle, spherical.phi ) );
-					球形.makeSafe();
-					spherical.radius *= scale; // 将半径限制在所需范围�??
-
-					spherical.radius = Math.max( scope.minDistance, Math.min( scope.maxDistance, spherical.radius ) ); // 将目标移动到平移位置
-
-					如果 ( scope.enableDamping === true ) {
-
-						scope.target.addScaledVector( panOffset, scope.dampingFactor );
-
-					} 别的 {
-
-						scope.target.add( panOffset );
-
-					}
-
-					offset.setFromSpherical( spherical ); // 将偏移量旋转回“相机向上向量向上”的空间
-
-					offset.applyQuaternion(quatInverse);
-					position.copy(scope.target).add(offset);
-					scope.object.lookAt(scope.target);
-
-					如果 ( scope.enableDamping === true ) {
-
-						sphericalDelta.theta *= 1 - scope.dampingFactor;
-						sphericalDelta.phi *= 1 - scope.dampingFactor;
-						panOffset.multiplyScalar(1 - scope.dampingFactor);
-
-					} 别的 {
-
-						sphericalDelta.set( 0, 0, 0 );
-						panOffset.set(0, 0, 0);
-
-					}
-
-					scale = 1; // 更新条件为：
-					// min(相机位移，相机旋转角度（弧度�??)^2 > EPS
-					// 使用小角度近�?? cos(x/2) = 1 - x^2 / 8
-
-					如果 ( zoomChanged || lastPosition.distanceToSquared( scope.object.position ) > EPS || 8 * ( 1 - lastQuaternion.dot( scope.object.quaternion ) ) > EPS ) {
-
-						scope.dispatchEvent( _changeEvent );
-						lastPosition.copy( scope.object.position );
-						lastQuaternion.copy( scope.object.quaternion );
-						zoomChanged = false;
-						返回 true�??
-
-					}
-
-					返回 false�??
-
-				};
-
-			}();
-
-			this.dispose = function () {
-
-				scope.domElement.removeEventListener( 'contextmenu', onContextMenu );
-				scope.domElement.removeEventListener('pointerdown', onPointerDown);
-				scope.domElement.removeEventListener('wheel', onMouseWheel);
-				scope.domElement.removeEventListener('touchstart', onTouchStart);
-				scope.domElement.removeEventListener('touchend', onTouchEnd);
-				scope.domElement.removeEventListener('touchmove', onTouchMove);
-				scope.domElement.ownerDocument.removeEventListener('pointermove', onPointerMove);
-				scope.domElement.ownerDocument.removeEventListener('pointerup', onPointerUp);
-
-				if ( scope._domElementKeyEvents !== null ) {
-
-					scope._domElementKeyEvents.removeEventListener('keydown', onKeyDown);
-
-				} //scope.dispatchEvent( { type: 'dispose' } ); // 这部分应该添加到这里吗？
-
-			}; //
-			// 内部结构
-			//
-
+				ONE: THREE.TOUCH.ROTATE,
+				TWO: THREE.TOUCH.DOLLY_PAN
+			}; // internals
 
 			const scope = this;
 			const STATE = {
-				无：-1�??
-				旋转�??0�??
-				多莉�??1�??
-				PAN�??2�??
+				NONE: - 1,
+				ROTATE: 0,
+				DOLLY: 1,
+				PAN: 2,
 				TOUCH_ROTATE: 3,
-				TOUCH_PAN�??4�??
-				TOUCH_DOLLY_PAN: 5,
-				TOUCH_DOLLY_ROTATE: 6
+				TOUCH_DOLLY_PAN: 4,
+				TOUCH_DOLLY_ROTATE: 5
 			};
 			let state = STATE.NONE;
-			const EPS = 0.000001; // 当前位置（球坐标系）
-
+			const EPS = 0.000001;
 			const spherical = new THREE.Spherical();
 			const sphericalDelta = new THREE.Spherical();
-			�?? scale = 1�??
+			let scale = 1;
 			const panOffset = new THREE.Vector3();
 			let zoomChanged = false;
 			const rotateStart = new THREE.Vector2();
@@ -303,129 +103,93 @@
 
 			function getAutoRotationAngle() {
 
-				返回 2 * Math.PI / 60 / 60 * scope.autoRotateSpeed;
+				return 2 * Math.PI / 60 / 60 * scope.autoRotateSpeed;
 
 			}
 
 			function getZoomScale() {
 
-				返回 Math.pow(0.95, scope.zoomSpeed);
+				return Math.pow( 0.95, scope.zoomSpeed );
 
 			}
 
 			function rotateLeft( angle ) {
 
-				sphericalDelta.theta -= 角度;
+				sphericalDelta.theta -= angle;
 
 			}
 
 			function rotateUp( angle ) {
 
-				球面Δ.phi -= 角度�??
+				sphericalDelta.phi -= angle;
 
 			}
 
-			const panLeft = function () {
+			function panLeft( distance, objectMatrix ) {
 
 				const v = new THREE.Vector3();
-				返回函数 panLeft( distance, objectMatrix ) {
-
-					v.setFromMatrixColumn( objectMatrix, 0 ); // 获取 objectMatrix �?? X �??
+				v.setFromMatrixColumn( objectMatrix, 0 ); // get X column of objectMatrix
 
 					v.multiplyScalar( - distance );
 					panOffset.add( v );
 
-				};
+			}
 
-			}();
-
-			const panUp = function () {
+			function panUp( distance, objectMatrix ) {
 
 				const v = new THREE.Vector3();
-				返回函数 panUp(距离, objectMatrix) {
 
-					如果 ( scope.screenSpacePanning === true ) {
+				if ( scope.screenSpacePanning === true ) {
 
 						v.setFromMatrixColumn( objectMatrix, 1 );
 
-					} 别的 {
+				} else {
 
 						v.setFromMatrixColumn( objectMatrix, 0 );
-						v.crossVectors(scope.object.up, v);
+					v.crossVectors( scope.object.up, v );
 
 					}
 
-					v.multiplyScalar(距离);
+				v.multiplyScalar( distance );
 					panOffset.add( v );
 
-				};
+			}
 
-			}(); // deltaX �?? deltaY 的单位是像素；向右和向下为正值�?
-
-
-			const pan = function () {
-
-				const offset = new THREE.Vector3();
-				返回函数 pan( deltaX, deltaY ) {
+			function pan( deltaX, deltaY ) {
 
 					const element = scope.domElement;
 
-					如果 ( scope.object.isPerspectiveCamera ) {
+				if ( scope.object.isPerspectiveCamera ) {
 
-						// 看法
 						const position = scope.object.position;
-						offset.copy(position).sub(scope.target);
-						let targetDistance = offset.length(); // 视野的一半是从屏幕中心到顶部的距�??
+					const offset = new THREE.Vector3();
+					offset.copy( position ).sub( scope.target );
+					let targetDistance = offset.length(); // half of the m_plane_height at the target distance
 
-						targetDistance *= Math.tan( scope.object.fov / 2 * Math.PI / 180.0 ); // 这里只使�?? clientHeight，所以宽高比不会影响速度
+					targetDistance *= Math.tan( scope.object.fov / 2 * Math.PI / 180.0 ); // we actually don't use clientWidth here, but it's probably better to use it if you have non-square aspect ratio
 
 						panLeft( 2 * deltaX * targetDistance / element.clientHeight, scope.object.matrix );
 						panUp( 2 * deltaY * targetDistance / element.clientHeight, scope.object.matrix );
 
 					} else if ( scope.object.isOrthographicCamera ) {
 
-						正交
 						panLeft( deltaX * ( scope.object.right - scope.object.left ) / scope.object.zoom / element.clientWidth, scope.object.matrix );
-						panUp(deltaY * (scope.object.top - scope.object.bottom) / scope.object.zoom / element.clientHeight, scope.object.matrix);
+					panUp( deltaY * ( scope.object.top - scope.object.bottom ) / scope.object.zoom / element.clientHeight, scope.object.matrix );
 
-					} 别的 {
+				} else {
 
-						// 相机既非正交相机也非透视相机
-						console.warn('警告：OrbitControls.js 遇到未知的相机类�?? - 平移已禁用�?');
+					console.warn( 'THREE.OrbitControls: camera is neither PerspectiveCamera nor OrthographicCamera. Pan disabled.' );
 						scope.enablePan = false;
 
 					}
-
-				};
-
-			}();
-
-			function dollyOut( dollyScale ) {
-
-				如果 ( scope.object.isPerspectiveCamera ) {
-
-					比例�?? /= 多莉比例尺；
-
-				} else if ( scope.object.isOrthographicCamera ) {
-
-					scope.object.zoom = Math.max( scope.minZoom, Math.min( scope.maxZoom, scope.object.zoom * dollyScale ) );
-					scope.object.updateProjectionMatrix();
-					zoomChanged = true;
-
-				} 别的 {
-
-					console.warn('警告：OrbitControls.js 遇到未知的摄像机类型 - 推拉/变焦功能已禁用�?');
-					scope.enableZoom = false;
-
-				}
 
 			}
 
 			function dollyIn( dollyScale ) {
 
-				如果 ( scope.object.isPerspectiveCamera ) {
+				if ( scope.object.isPerspectiveCamera ) {
 
-					比例�?? *= 多莉比例尺；
+					scale *= dollyScale;
 
 				} else if ( scope.object.isOrthographicCamera ) {
 
@@ -433,33 +197,339 @@
 					scope.object.updateProjectionMatrix();
 					zoomChanged = true;
 
-				} 别的 {
+				} else {
 
-					console.warn('警告：OrbitControls.js 遇到未知的摄像机类型 - 推拉/变焦功能已禁用�?');
+					console.warn( 'THREE.OrbitControls: camera is neither PerspectiveCamera nor OrthographicCamera. Zoom disabled.' );
 					scope.enableZoom = false;
 
 				}
 
-			} //
-			// 事件回调 - 更新对象状�?
-			//
+			}
 
+			function dollyOut( dollyScale ) {
+
+				if ( scope.object.isPerspectiveCamera ) {
+
+					scale /= dollyScale;
+
+				} else if ( scope.object.isOrthographicCamera ) {
+
+					scope.object.zoom = Math.max( scope.minZoom, Math.min( scope.maxZoom, scope.object.zoom * dollyScale ) );
+					scope.object.updateProjectionMatrix();
+					zoomChanged = true;
+
+				} else {
+
+					console.warn( 'THREE.OrbitControls: camera is neither PerspectiveCamera nor OrthographicCamera. Zoom disabled.' );
+					scope.enableZoom = false;
+
+				}
+
+			}
+
+			function onMouseDown( event ) {
+
+				if ( scope.enabled === false ) return;
+				event.preventDefault();
+				document.addEventListener( 'mousemove', onMouseMove, false );
+				document.addEventListener( 'mouseup', onMouseUp, false );
+				let mouseAction;
+
+				switch ( event.button ) {
+
+					case 0:
+						mouseAction = scope.mouseButtons.LEFT;
+						break;
+
+					case 1:
+						mouseAction = scope.mouseButtons.MIDDLE;
+						break;
+
+					case 2:
+						mouseAction = scope.mouseButtons.RIGHT;
+						break;
+
+					default:
+						mouseAction = - 1;
+
+				}
+
+				switch ( mouseAction ) {
+
+					case THREE.MOUSE.DOLLY:
+						if ( scope.enableZoom === false ) return;
+						handleMouseDownDolly( event );
+						state = STATE.DOLLY;
+						break;
+
+					case THREE.MOUSE.ROTATE:
+						if ( event.ctrlKey || event.metaKey || event.shiftKey ) {
+
+							if ( scope.enablePan === false ) return;
+							handleMouseDownPan( event );
+							state = STATE.PAN;
+
+						} else {
+
+							if ( scope.enableRotate === false ) return;
+							handleMouseDownRotate( event );
+							state = STATE.ROTATE;
+
+						}
+
+						break;
+
+					case THREE.MOUSE.PAN:
+						if ( event.ctrlKey || event.metaKey || event.shiftKey ) {
+
+							if ( scope.enableRotate === false ) return;
+							handleMouseDownRotate( event );
+							state = STATE.ROTATE;
+
+						} else {
+
+							if ( scope.enablePan === false ) return;
+							handleMouseDownPan( event );
+							state = STATE.PAN;
+
+						}
+
+						break;
+
+					default:
+						state = STATE.NONE;
+
+				}
+
+				if ( state !== STATE.NONE ) {
+
+					scope.dispatchEvent( _startEvent );
+
+				}
+
+			}
+
+			function onMouseMove( event ) {
+
+				if ( scope.enabled === false ) return;
+				event.preventDefault();
+
+				switch ( state ) {
+
+					case STATE.ROTATE:
+						if ( scope.enableRotate === false ) return;
+						handleMouseMoveRotate( event );
+						break;
+
+					case STATE.DOLLY:
+						if ( scope.enableZoom === false ) return;
+						handleMouseMoveDolly( event );
+						break;
+
+					case STATE.PAN:
+						if ( scope.enablePan === false ) return;
+						handleMouseMovePan( event );
+						break;
+
+				}
+
+			}
+
+			function onMouseUp() {
+
+				if ( scope.enabled === false ) return;
+				document.removeEventListener( 'mousemove', onMouseMove, false );
+				document.removeEventListener( 'mouseup', onMouseUp, false );
+				scope.dispatchEvent( _endEvent );
+				state = STATE.NONE;
+
+			}
+
+			function onMouseWheel( event ) {
+
+				if ( scope.enabled === false || scope.enableZoom === false || ( state !== STATE.NONE && state !== STATE.ROTATE ) ) return;
+				event.preventDefault();
+				event.stopPropagation();
+				scope.dispatchEvent( _startEvent );
+
+				if ( event.deltaY < 0 ) {
+
+					dollyIn( getZoomScale() );
+
+				} else if ( event.deltaY > 0 ) {
+
+					dollyOut( getZoomScale() );
+
+				}
+
+				scope.update();
+				scope.dispatchEvent( _endEvent );
+
+			}
+
+			function onKeyDown( event ) {
+
+				if ( scope.enabled === false || scope.enableKeys === false || scope.enablePan === false ) return;
+				let needsUpdate = false;
+
+				switch ( event.code ) {
+
+					case scope.keys.UP:
+						pan( 0, scope.keyPanSpeed );
+						needsUpdate = true;
+						break;
+
+					case scope.keys.BOTTOM:
+						pan( 0, - scope.keyPanSpeed );
+						needsUpdate = true;
+						break;
+
+					case scope.keys.LEFT:
+						pan( scope.keyPanSpeed, 0 );
+						needsUpdate = true;
+						break;
+
+					case scope.keys.RIGHT:
+						pan( - scope.keyPanSpeed, 0 );
+						needsUpdate = true;
+						break;
+
+				}
+
+				if ( needsUpdate ) {
+
+					event.preventDefault();
+					scope.update();
+
+				}
+
+			}
+
+			function onTouchStart( event ) {
+
+				if ( scope.enabled === false ) return;
+				event.preventDefault(); // prevent scrolling
+
+				switch ( event.touches.length ) {
+
+					case 1:
+						switch ( scope.touches.ONE ) {
+
+							case THREE.TOUCH.ROTATE:
+								if ( scope.enableRotate === false ) return;
+								handleTouchStartRotate( event );
+								state = STATE.TOUCH_ROTATE;
+								break;
+
+							case THREE.TOUCH.PAN:
+								if ( scope.enablePan === false ) return;
+								handleTouchStartPan( event );
+								state = STATE.TOUCH_PAN;
+								break;
+
+							default:
+								state = STATE.NONE;
+
+						}
+
+						break;
+
+					case 2:
+						switch ( scope.touches.TWO ) {
+
+							case THREE.TOUCH.DOLLY_PAN:
+								if ( scope.enableZoom === false && scope.enablePan === false ) return;
+								handleTouchStartDollyPan( event );
+								state = STATE.TOUCH_DOLLY_PAN;
+								break;
+
+							case THREE.TOUCH.DOLLY_ROTATE:
+								if ( scope.enableZoom === false && scope.enableRotate === false ) return;
+								handleTouchStartDollyRotate( event );
+								state = STATE.TOUCH_DOLLY_ROTATE;
+								break;
+
+							default:
+								state = STATE.NONE;
+
+						}
+
+						break;
+
+					default:
+						state = STATE.NONE;
+
+				}
+
+				if ( state !== STATE.NONE ) {
+
+					scope.dispatchEvent( _startEvent );
+
+				}
+
+			}
+
+			function onTouchMove( event ) {
+
+				if ( scope.enabled === false ) return;
+				event.preventDefault(); // prevent scrolling
+
+				switch ( state ) {
+
+					case STATE.TOUCH_ROTATE:
+						if ( scope.enableRotate === false ) return;
+						handleTouchMoveRotate( event );
+						scope.update();
+						break;
+
+					case STATE.TOUCH_PAN:
+						if ( scope.enablePan === false ) return;
+						handleTouchMovePan( event );
+						scope.update();
+						break;
+
+					case STATE.TOUCH_DOLLY_PAN:
+						if ( scope.enableZoom === false && scope.enablePan === false ) return;
+						handleTouchMoveDollyPan( event );
+						scope.update();
+						break;
+
+					case STATE.TOUCH_DOLLY_ROTATE:
+						if ( scope.enableZoom === false && scope.enableRotate === false ) return;
+						handleTouchMoveDollyRotate( event );
+						scope.update();
+						break;
+
+					default:
+						state = STATE.NONE;
+
+				}
+
+			}
+
+			function onTouchEnd() {
+
+				if ( scope.enabled === false ) return;
+				scope.dispatchEvent( _endEvent );
+				state = STATE.NONE;
+
+			}
 
 			function handleMouseDownRotate( event ) {
 
-				rotateStart.set(event.clientX, event.clientY);
+				rotateStart.set( event.clientX, event.clientY );
 
 			}
 
 			function handleMouseDownDolly( event ) {
 
-				dollyStart.set(event.clientX, event.clientY);
+				dollyStart.set( event.clientX, event.clientY );
 
 			}
 
 			function handleMouseDownPan( event ) {
 
-				panStart.set(event.clientX, event.clientY);
+				panStart.set( event.clientX, event.clientY );
 
 			}
 
@@ -468,130 +538,53 @@
 				rotateEnd.set( event.clientX, event.clientY );
 				rotateDelta.subVectors( rotateEnd, rotateStart ).multiplyScalar( scope.rotateSpeed );
 				const element = scope.domElement;
-				rotateLeft( 2 * Math.PI * rotateDelta.x / element.clientHeight ); // 是的，高�??
+				rotateLeft( 2 * Math.PI * rotateDelta.x / element.clientHeight ); // yes, height
 
 				rotateUp( 2 * Math.PI * rotateDelta.y / element.clientHeight );
 				rotateStart.copy( rotateEnd );
-				作用域更�??();
+				scope.update();
 
 			}
 
 			function handleMouseMoveDolly( event ) {
 
-				dollyEnd.set(event.clientX, event.clientY);
+				dollyEnd.set( event.clientX, event.clientY );
 				dollyDelta.subVectors( dollyEnd, dollyStart );
 
-				如果 ( dollyDelta.y > 0 ) {
+				if ( dollyDelta.y > 0 ) {
 
-					dollyOut(getZoomScale());
+					dollyOut( getZoomScale() );
 
 				} else if ( dollyDelta.y < 0 ) {
 
-					dollyIn(getZoomScale());
+					dollyIn( getZoomScale() );
 
 				}
 
 				dollyStart.copy( dollyEnd );
-				作用域更�??();
+				scope.update();
 
 			}
 
 			function handleMouseMovePan( event ) {
 
-				panEnd.set(event.clientX, event.clientY);
+				panEnd.set( event.clientX, event.clientY );
 				panDelta.subVectors( panEnd, panStart ).multiplyScalar( scope.panSpeed );
-				平移（panDelta.x，panDelta.y）；
+				pan( panDelta.x, panDelta.y );
 				panStart.copy( panEnd );
-				作用域更�??();
-
-			}
-
-			function handleMouseUp() { // 空操�??
-			}
-
-			function handleMouseWheel( event ) {
-
-				如果 ( event.deltaY < 0 ) {
-
-					dollyIn(getZoomScale());
-
-				} else if ( event.deltaY > 0 ) {
-
-					dollyOut(getZoomScale());
-
-				}
-
-				作用域更�??();
-
-			}
-
-			function handleKeyDown( event ) {
-
-				let needsUpdate = false;
-
-				switch ( event.code ) {
-
-					case scope.keys.UP:
-						pan(0, scope.keyPanSpeed);
-						needsUpdate = true;
-						休息;
-
-					案例范围.�??.底部�??
-						pan( 0, - scope.keyPanSpeed );
-						needsUpdate = true;
-						休息;
-
-					case scope.keys.LEFT:
-						pan( scope.keyPanSpeed, 0 );
-						needsUpdate = true;
-						休息;
-
-					case scope.keys.RIGHT:
-						pan( - scope.keyPanSpeed, 0 );
-						needsUpdate = true;
-						休息;
-
-				}
-
-				如果（需要更新）{
-
-					// 防止浏览器在光标键上滚动
-					event.preventDefault();
-					作用域更�??();
-
-				}
+				scope.update();
 
 			}
 
 			function handleTouchStartRotate( event ) {
 
-				如果 ( event.touches.length == 1 ) {
-
-					rotateStart.set(event.touches[0].pageX, event.touches[0].pageY);
-
-				} 别的 {
-
-					const x = 0.5 * ( event.touches[ 0 ].pageX + event.touches[ 1 ].pageX );
-					const y = 0.5 * ( event.touches[ 0 ].pageY + event.touches[ 1 ].pageY );
-					rotateStart.set( x, y );
-
-				}
+				rotateStart.set( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY );
 
 			}
 
 			function handleTouchStartPan( event ) {
 
-				如果 ( event.touches.length == 1 ) {
-
-					panStart.set(event.touches[0].pageX, event.touches[0].pageY);
-
-				} 别的 {
-
-					const x = 0.5 * ( event.touches[ 0 ].pageX + event.touches[ 1 ].pageX );
-					const y = 0.5 * ( event.touches[ 0 ].pageY + event.touches[ 1 ].pageY );
-					panStart.set( x, y );
-
-				}
+				panStart.set( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY );
 
 			}
 
@@ -600,7 +593,7 @@
 				const dx = event.touches[ 0 ].pageX - event.touches[ 1 ].pageX;
 				const dy = event.touches[ 0 ].pageY - event.touches[ 1 ].pageY;
 				const distance = Math.sqrt( dx * dx + dy * dy );
-				dollyStart.set(0, distance);
+				dollyStart.set( 0, distance );
 
 			}
 
@@ -614,27 +607,16 @@
 			function handleTouchStartDollyRotate( event ) {
 
 				if ( scope.enableZoom ) handleTouchStartDolly( event );
-				如果 ( scope.enableRotate ) handleTouchStartRotate( event );
+				if ( scope.enableRotate ) handleTouchStartRotate( event );
 
 			}
 
 			function handleTouchMoveRotate( event ) {
 
-				如果 ( event.touches.length == 1 ) {
-
-					rotateEnd.set(event.touches[0].pageX, event.touches[0].pageY);
-
-				} 别的 {
-
-					const x = 0.5 * ( event.touches[ 0 ].pageX + event.touches[ 1 ].pageX );
-					const y = 0.5 * ( event.touches[ 0 ].pageY + event.touches[ 1 ].pageY );
-					rotateEnd.set( x, y );
-
-				}
-
+				rotateEnd.set( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY );
 				rotateDelta.subVectors( rotateEnd, rotateStart ).multiplyScalar( scope.rotateSpeed );
 				const element = scope.domElement;
-				rotateLeft( 2 * Math.PI * rotateDelta.x / element.clientHeight ); // 是的，高�??
+				rotateLeft( 2 * Math.PI * rotateDelta.x / element.clientHeight ); // yes, height
 
 				rotateUp( 2 * Math.PI * rotateDelta.y / element.clientHeight );
 				rotateStart.copy( rotateEnd );
@@ -643,20 +625,9 @@
 
 			function handleTouchMovePan( event ) {
 
-				如果 ( event.touches.length == 1 ) {
-
-					panEnd.set(event.touches[0].pageX, event.touches[0].pageY);
-
-				} 别的 {
-
-					const x = 0.5 * ( event.touches[ 0 ].pageX + event.touches[ 1 ].pageX );
-					const y = 0.5 * ( event.touches[ 0 ].pageY + event.touches[ 1 ].pageY );
-					panEnd.set( x, y );
-
-				}
-
+				panEnd.set( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY );
 				panDelta.subVectors( panEnd, panStart ).multiplyScalar( scope.panSpeed );
-				平移（panDelta.x，panDelta.y）；
+				pan( panDelta.x, panDelta.y );
 				panStart.copy( panEnd );
 
 			}
@@ -666,9 +637,9 @@
 				const dx = event.touches[ 0 ].pageX - event.touches[ 1 ].pageX;
 				const dy = event.touches[ 0 ].pageY - event.touches[ 1 ].pageY;
 				const distance = Math.sqrt( dx * dx + dy * dy );
-				dollyEnd.set(0, distance);
+				dollyEnd.set( 0, distance );
 				dollyDelta.set( 0, Math.pow( dollyEnd.y / dollyStart.y, scope.zoomSpeed ) );
-				dollyOut(dollyDelta.y);
+				dollyIn( dollyDelta.y );
 				dollyStart.copy( dollyEnd );
 
 			}
@@ -683,363 +654,169 @@
 			function handleTouchMoveDollyRotate( event ) {
 
 				if ( scope.enableZoom ) handleTouchMoveDolly( event );
-				如果 ( scope.enableRotate ) handleTouchMoveRotate( event );
+				if ( scope.enableRotate ) handleTouchMoveRotate( event );
 
 			}
 
-			function handleTouchEnd() { // 空操�??
-			} //
-			// 事件处理程序 - FSM：监听事件并重置状�?
-			//
+			this.getPolarAngle = function () {
+
+				return spherical.phi;
+
+			};
+
+			this.getAzimuthalAngle = function () {
+
+				return spherical.theta;
+
+			};
+
+			this.update = function () {
+
+				const offset = new THREE.Vector3(); // so camera.up is the vertical axis
+
+				const quat = new THREE.Quaternion().setFromUnitVectors( scope.object.up, new THREE.Vector3( 0, 1, 0 ) );
+				const quatInverse = quat.clone().invert();
+				const lastPosition = new THREE.Vector3();
+				const lastQuaternion = new THREE.Quaternion();
+				return function update() {
+
+					const position = scope.object.position;
+					offset.copy( position ).sub( scope.target ); // rotate offset to "y-axis-is-up" space
+
+					offset.applyQuaternion( quat ); // angle from z-axis around y-axis
+
+					spherical.setFromVector3( offset );
+
+					if ( scope.autoRotate && state === STATE.NONE ) {
+
+						rotateLeft( getAutoRotationAngle() );
+
+					}
+
+					if ( scope.enableDamping ) {
+
+						spherical.theta += sphericalDelta.theta * scope.dampingFactor;
+						spherical.phi += sphericalDelta.phi * scope.dampingFactor;
+
+					} else {
+
+						spherical.theta += sphericalDelta.theta;
+						spherical.phi += sphericalDelta.phi;
+
+					} // restrict theta to be between desired limits
 
 
-			function onPointerDown( event ) {
+					let min = scope.minAzimuthAngle;
+					let max = scope.maxAzimuthAngle;
 
-				如果 ( scope.enabled === false ) 返回;
+					if ( isFinite( min ) && isFinite( max ) ) {
 
-				switch ( event.pointerType ) {
+						if ( min < - Math.PI ) min += 2 * Math.PI;
+						if ( min > Math.PI ) min -= 2 * Math.PI;
+						if ( max < - Math.PI ) max += 2 * Math.PI;
+						if ( max > Math.PI ) max -= 2 * Math.PI;
 
-					案例“mouse”：
-					案例“pen”：
-						onMouseDown(事件);
-						休息;
-        // TODO 触摸
+						if ( min <= max ) {
 
-				}
+							spherical.theta = Math.max( min, Math.min( max, spherical.theta ) );
 
-			}
+						} else {
 
-			function onPointerMove( event ) {
-
-				如果 ( scope.enabled === false ) 返回;
-
-				switch ( event.pointerType ) {
-
-					案例“mouse”：
-					案例“pen”：
-						onMouseMove(事件);
-						休息;
-        // TODO 触摸
-
-				}
-
-			}
-
-			function onPointerUp( event ) {
-
-				switch ( event.pointerType ) {
-
-					案例“mouse”：
-					案例“pen”：
-						onMouseUp(事件);
-						休息;
-        // TODO 触摸
-
-				}
-
-			}
-
-			function onMouseDown( event ) {
-
-				// 阻止浏览器滚动�?
-				event.preventDefault(); // 由于上面已经调用�?? preventDefault，所以需要手动设置焦点�?
-				// 阻止浏览器自动设置�?
-
-				scope.domElement.focus ? scope.domElement.focus() : window.focus();
-				let mouseAction;
-
-				switch ( event.button ) {
-
-					案例 0�??
-						mouseAction = scope.mouseButtons.LEFT;
-						休息;
-
-					案例1�??
-						mouseAction = scope.mouseButtons.MIDDLE;
-						休息;
-
-					案例二：
-						mouseAction = scope.mouseButtons.RIGHT;
-						休息;
-
-					默认�??
-						mouseAction = -1;
-
-				}
-
-				switch ( mouseAction ) {
-
-					案例 THREE.MOUSE.DOLLY�??
-						如果 ( scope.enableZoom === false ) 返回;
-						handleMouseDownDolly(事件);
-						状�? = STATE.DOLLY;
-						休息;
-
-					案例 THREE.MOUSE.ROTATE�??
-						如果 ( event.ctrlKey || event.metaKey || event.shiftKey ) {
-
-							如果 ( scope.enablePan === false ) 返回;
-							handleMouseDownPan(事件);
-							状�? = STATE.PAN;
-
-						} 别的 {
-
-							如果 ( scope.enableRotate === false ) 返回;
-							handleMouseDownRotate(事件);
-							状�? = STATE.ROTATE;
+							spherical.theta = spherical.theta > ( min + max ) / 2 ? Math.max( min, spherical.theta ) : Math.min( max, spherical.theta );
 
 						}
 
-						休息;
+					} // restrict phi to be between desired limits
 
-					案例 THREE.MOUSE.PAN�??
-						如果 ( event.ctrlKey || event.metaKey || event.shiftKey ) {
 
-							如果 ( scope.enableRotate === false ) 返回;
-							handleMouseDownRotate(事件);
-							状�? = STATE.ROTATE;
+					spherical.phi = Math.max( scope.minPolarAngle, Math.min( scope.maxPolarAngle, spherical.phi ) );
+					spherical.makeSafe();
+					spherical.radius *= scale; // restrict radius to be between desired limits
 
-						} 别的 {
+					spherical.radius = Math.max( scope.minDistance, Math.min( scope.maxDistance, spherical.radius ) ); // move target to panned location
 
-							如果 ( scope.enablePan === false ) 返回;
-							handleMouseDownPan(事件);
-							状�? = STATE.PAN;
+					if ( scope.enableDamping ) {
 
-						}
+						scope.target.addScaledVector( panOffset, scope.dampingFactor );
 
-						休息;
+					} else {
 
-					默认�??
-						状�? = STATE.NONE;
+						scope.target.add( panOffset );
 
-				}
+					}
 
-				如果 (状�? !== STATE.NONE) {
+					offset.setFromSpherical( spherical ); // rotate offset back to "camera-up-vector-is-up" space
 
-					scope.domElement.ownerDocument.addEventListener('pointermove', onPointerMove);
-					scope.domElement.ownerDocument.addEventListener('pointerup', onPointerUp);
-					scope.dispatchEvent( _startEvent );
+					offset.applyQuaternion( quatInverse );
+					position.copy( scope.target ).add( offset );
+					scope.object.lookAt( scope.target );
 
-				}
+					if ( scope.enableDamping ) {
 
-			}
+						sphericalDelta.theta *= 1 - scope.dampingFactor;
+						sphericalDelta.phi *= 1 - scope.dampingFactor;
+						panOffset.multiplyScalar( 1 - scope.dampingFactor );
 
-			function onMouseMove( event ) {
+					} else {
 
-				如果 ( scope.enabled === false ) 返回;
+						sphericalDelta.set( 0, 0, 0 );
+						panOffset.set( 0, 0, 0 );
+
+					}
+
+					scale = 1; // update condition is:
+					// min(position displacement, rotation displacement) > EPS
+					// using small-angle approximation for rotations
+
+					if ( zoomChanged || lastPosition.distanceToSquared( scope.object.position ) > EPS || 8 * ( 1 - lastQuaternion.dot( scope.object.quaternion ) ) > EPS ) {
+
+						scope.dispatchEvent( _changeEvent );
+						lastPosition.copy( scope.object.position );
+						lastQuaternion.copy( scope.object.quaternion );
+						zoomChanged = false;
+						return true;
+
+					}
+
+					return false;
+
+				};
+
+			}();
+
+			this.dispose = function () {
+
+				domElement.removeEventListener( 'contextmenu', onContextMenu, false );
+				domElement.removeEventListener( 'mousedown', onMouseDown, false );
+				domElement.removeEventListener( 'wheel', onMouseWheel, false );
+				domElement.removeEventListener( 'touchstart', onTouchStart, false );
+				domElement.removeEventListener( 'touchend', onTouchEnd, false );
+				domElement.removeEventListener( 'touchmove', onTouchMove, false );
+				document.removeEventListener( 'mousemove', onMouseMove, false );
+				document.removeEventListener( 'mouseup', onMouseUp, false );
+				window.removeEventListener( 'keydown', onKeyDown, false );
+
+			};
+
+			domElement.addEventListener( 'contextmenu', onContextMenu, false );
+			domElement.addEventListener( 'mousedown', onMouseDown, false );
+			domElement.addEventListener( 'wheel', onMouseWheel, false );
+			domElement.addEventListener( 'touchstart', onTouchStart, false );
+			domElement.addEventListener( 'touchend', onTouchEnd, false );
+			domElement.addEventListener( 'touchmove', onTouchMove, false );
+			window.addEventListener( 'keydown', onKeyDown, false );
+
+			function onContextMenu( event ) {
+
+				if ( scope.enabled === false ) return;
 				event.preventDefault();
 
-				switch ( 状�? ) {
-
-					case STATE.ROTATE:
-						如果 ( scope.enableRotate === false ) 返回;
-						handleMoveRotate(事件);
-						休息;
-
-					案例 STATE.DOLLY�??
-						如果 ( scope.enableZoom === false ) 返回;
-						handleMouseMoveDolly(事件);
-						休息;
-
-					案例 STATE.PAN�??
-						如果 ( scope.enablePan === false ) 返回;
-						handleMovePan(事件);
-						休息;
-
-				}
-
 			}
-
-			function onMouseUp( event ) {
-
-				scope.domElement.ownerDocument.removeEventListener('pointermove', onPointerMove);
-				scope.domElement.ownerDocument.removeEventListener('pointerup', onPointerUp);
-				如果 ( scope.enabled === false ) 返回;
-				handleMouseUp(事件);
-				scope.dispatchEvent( _endEvent );
-				状�? = STATE.NONE;
-
-			}
-
-			function onMouseWheel( event ) {
-
-				如果 ( scope.enabled === false || scope.enableZoom === false || state !== STATE.NONE && state !== STATE.ROTATE ) 返回;
-				event.preventDefault();
-				scope.dispatchEvent( _startEvent );
-				处理鼠标滚轮（事件）�??
-				scope.dispatchEvent( _endEvent );
-
-			}
-
-			function onKeyDown( event ) {
-
-				如果 ( scope.enabled === false || scope.enablePan === false ) 返回;
-				handleKeyDown(事件);
-
-			}
-
-			function onTouchStart( event ) {
-
-				如果 ( scope.enabled === false ) 返回;
-				event.preventDefault(); // 防止滚动
-
-				switch ( event.touches.length ) {
-
-					案例1�??
-						switch ( scope.touches.ONE ) {
-
-							案例 THREE.TOUCH.ROTATE�??
-								如果 ( scope.enableRotate === false ) 返回;
-								handleTouchStartRoot(事件);
-								状�? = STATE.TOUCH_ROTATE;
-								休息;
-
-							案例 THREE.TOUCH.PAN�??
-								如果 ( scope.enablePan === false ) 返回;
-								handleTouchStartPan(事件);
-								状�? = STATE.TOUCH_PAN;
-								休息;
-
-							默认�??
-								状�? = STATE.NONE;
-
-						}
-
-						休息;
-
-					案例二：
-						switch ( scope.touches.TWO ) {
-
-							案例 THREE.TOUCH.DOLLY_PAN�??
-								如果 ( scope.enableZoom === false && scope.enablePan === false ) 返回;
-								handleTouchStartDollyPan(事件);
-								状�? = STATE.TOUCH_DOLLY_PAN;
-								休息;
-
-							案例 THREE.TOUCH.DOLLY_ROTATE�??
-								如果 ( scope.enableZoom === false && scope.enableRotate === false ) 返回;
-								handleTouchStartDollyRotate(事件);
-								状�? = STATE.TOUCH_DOLLY_ROTATE;
-								休息;
-
-							默认�??
-								状�? = STATE.NONE;
-
-						}
-
-						休息;
-
-					默认�??
-						状�? = STATE.NONE;
-
-				}
-
-				如果 (状�? !== STATE.NONE) {
-
-					scope.dispatchEvent( _startEvent );
-
-				}
-
-			}
-
-			function onTouchMove( event ) {
-
-				如果 ( scope.enabled === false ) 返回;
-				event.preventDefault(); // 防止滚动
-
-				switch ( 状�? ) {
-
-					case STATE.TOUCH_ROTATE:
-						如果 ( scope.enableRotate === false ) 返回;
-						handleTouchMoveRotate(事件);
-						作用域更�??();
-						休息;
-
-					case STATE.TOUCH_PAN:
-						如果 ( scope.enablePan === false ) 返回;
-						handleTouchMovePan(事件);
-						作用域更�??();
-						休息;
-
-					case STATE.TOUCH_DOLLY_PAN:
-						如果 ( scope.enableZoom === false && scope.enablePan === false ) 返回;
-						handleTouchMoveDollyPan(事件);
-						作用域更�??();
-						休息;
-
-					case STATE.TOUCH_DOLLY_ROTATE:
-						如果 ( scope.enableZoom === false && scope.enableRotate === false ) 返回;
-						handleTouchMoveDollyRotate(事件);
-						作用域更�??();
-						休息;
-
-					默认�??
-						状�? = STATE.NONE;
-
-				}
-
-			}
-
-			function onTouchEnd( event ) {
-
-				如果 ( scope.enabled === false ) 返回;
-				handleTouchEnd(事件);
-				scope.dispatchEvent( _endEvent );
-				状�? = STATE.NONE;
-
-			}
-
-			函数 onContextMenu( 事件 ) {
-
-				如果 ( scope.enabled === false ) 返回;
-				event.preventDefault();
-
-			} //
-
-
-			scope.domElement.addEventListener( 'contextmenu', onContextMenu );
-			scope.domElement.addEventListener('pointerdown', onPointerDown);
-			scope.domElement.addEventListener('wheel', onMouseWheel, {
-				被动：否
-			} );
-			scope.domElement.addEventListener('touchstart', onTouchStart, {
-				被动：否
-			} );
-			scope.domElement.addEventListener('touchend', onTouchEnd);
-			scope.domElement.addEventListener('touchmove', onTouchMove, {
-				被动：否
-			} ); // 强制在开始时更新
-
-			this.update();
-
-		}
-
-	} // 这组控件可执行旋转、推拉（缩放）和平移�??
-	// �?? TrackballControls 不同，它保留了“向上”方向对�??.up（默认情况下�?? +Y）�?
-	// 这与 OrbitControls 非常相似，OrbitControls 是另一组触摸行为�?
-	//
-	// 旋转 - 右键，或左键 + Ctrl/Meta/Shift �?? / 触摸：双指旋�??
-	// 缩放 - 鼠标中键或鼠标滚�?? / 触摸：双指张开或挤�??
-	// 平移 - 鼠标左键或方向键 / 触摸：单指移�??
-
-
-	class MapControls extends OrbitControls {
-
-		constructor( object, domElement ) {
-
-			super(object, domElement);
-			this.screenSpacePanning = false; // 垂直于世界空间方向平�?? camera.up
-
-			this.mouseButtons.LEFT = THREE.MOUSE.PAN;
-			this.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
-			this.touches.ONE = THREE.TOUCH.PAN;
-			this.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
 
 		}
 
 	}
 
-	THREE.MapControls = MapControls;
 	THREE.OrbitControls = OrbitControls;
 
 } )();
