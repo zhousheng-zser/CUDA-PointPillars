@@ -179,11 +179,12 @@ void pre_processing(std::vector<float> &src, std::vector<float> &points_filtered
     double denom =1.0/ std::sqrt(a*a + b*b + c*c);
     
     // Filter points based on distance to ground plane
+    float ground_distance_threshold = cfg.ground_distance_threshold;
     for(int i = 0; i < src.size(); i += 4)
     {
 
         double distance = std::fabs(a * src[i] + b * src[i+1] + c * src[i+2] + d) * denom;
-        if(distance > 0.2  && point_in_3d_box(src[i], src[i+1], src[i+2], range_config) )
+        if(distance > ground_distance_threshold  && point_in_3d_box(src[i], src[i+1], src[i+2], range_config) )
         {
             points_filtered.push_back(src[i]);
             points_filtered.push_back(src[i+1]);

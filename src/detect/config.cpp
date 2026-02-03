@@ -140,6 +140,13 @@ void RangeConfigSingleton::initializeConfig(RangeConfig& config, const std::stri
                     config.ground_plane_d = -4.08259;
                 }
                 
+                // 读取 ground_distance_threshold 配置
+                if (j.contains("ground_distance_threshold")) {
+                    config.ground_distance_threshold = j["ground_distance_threshold"].get<float>();
+                } else {
+                    config.ground_distance_threshold = 0.2f;  // 默认值
+                }
+                
                 // 读取 Line1 配置
                 if (j.contains("line1")) {
                     auto& line1 = j["line1"];
@@ -219,6 +226,7 @@ void RangeConfigSingleton::initializeConfig(RangeConfig& config, const std::stri
         config.ground_plane_b = 0.00755401;
         config.ground_plane_c = -0.999967;
         config.ground_plane_d = -4.08259;
+        config.ground_distance_threshold = 0.2f;  // 默认值
         config.line1_config.start_x = 40.0f;
         config.line1_config.start_y = -2.0f;
         config.line1_config.start_z = -3.0f;

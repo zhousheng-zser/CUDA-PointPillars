@@ -52,6 +52,7 @@ struct RangeConfig {
     double ground_plane_b;  // 地平面参数 b
     double ground_plane_c;  // 地平面参数 c
     double ground_plane_d;  // 地平面参数 d
+    float ground_distance_threshold;  // 地平面距离阈值（用于过滤地面点）
 
     LineConfig line1_config;
     LineConfig line2_config;

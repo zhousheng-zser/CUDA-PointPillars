@@ -31,6 +31,7 @@
   "draw": {
     "point_cloud_draw_step": 0.1
   },
+  "ground_distance_threshold": 0.2,
   "ground_plane": {
       "a":  -0.018911,
       "b":  0.011378,
