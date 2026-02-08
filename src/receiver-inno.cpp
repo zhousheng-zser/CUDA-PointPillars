@@ -197,11 +197,11 @@ http_server::DetectionResult handle_detection_request(const std::string& unique_
     tracking::MultiObjectTracker::BestResult best={0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f};
     std::vector<std::array<float, 4>> rendered_points;
     bool flag =mot->set_unique_id_for_closest_vehicle(unique_id, road_id,rendered_points); //去设置unique_id
-    if( !flag )
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(150));  //再给一次机会 
-        flag = mot->set_unique_id_for_closest_vehicle(unique_id, road_id,rendered_points);
-    }
+    // if( !flag )
+    // {
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(30)); //再给一次机会 
+    //     flag = mot->set_unique_id_for_closest_vehicle(unique_id, road_id,rendered_points);
+    // }
     if(flag)
     {
         int T = 10;   // 10*200ms = 2s
@@ -339,7 +339,7 @@ int main(int argc, char** argv) {
     // Construct MultiObjectTracker after config is initialized
     // Config is automatically initialized when getInstance() is first called
     mot = new tracking::MultiObjectTracker(0.75f, 5,
-        tracking::DimensionStrategy::TRIMMED_MAX);
+        tracking::DimensionStrategy::MEDIAN);
     
     pool = new thread_pool(1);
     cudaStreamCreate(&stream);

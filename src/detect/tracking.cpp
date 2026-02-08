@@ -449,6 +449,37 @@ float Tracker::get_dimension_value(const std::vector<float>& values, DimensionSt
             return sum / static_cast<float>(count);
         }
         
+        case DimensionStrategy::MEDIAN: {
+            // 6. 取最大20%的中位数
+            if (values.empty()) {
+                return 0.0f;
+            }
+            
+            std::vector<float> sorted_values = values;
+            std::sort(sorted_values.begin(), sorted_values.end());
+            
+            // 取最大的20%的值
+            size_t n = sorted_values.size();
+            size_t count = static_cast<size_t>(n * 0.20f);
+            if (count == 0) count = 1;
+            if (count > n) count = n;
+            
+            size_t start_idx = n - count;  // 从后往前取20%
+            
+            // 对这20%的值取中位数
+            size_t subset_size = count;
+            if (subset_size % 2 == 0) {
+                // 偶数个元素：取中间两个数的平均值
+                size_t mid1 = start_idx + subset_size / 2 - 1;
+                size_t mid2 = start_idx + subset_size / 2;
+                return (sorted_values[mid1] + sorted_values[mid2]) / 2.0f;
+            } else {
+                // 奇数个元素：取中间值
+                size_t mid = start_idx + subset_size / 2;
+                return sorted_values[mid];
+            }
+        }
+        
         default:
             return *std::max_element(values.begin(), values.end());
     }

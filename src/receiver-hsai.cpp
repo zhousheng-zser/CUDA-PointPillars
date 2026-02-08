@@ -412,7 +412,7 @@ int main(int argc, char** argv) {
     // Construct MultiObjectTracker after config is initialized
     // Config is automatically initialized when getInstance() is first called
     mot = new tracking::MultiObjectTracker(0.75f, 5,
-        tracking::DimensionStrategy::TRIMMED_MAX);
+        tracking::DimensionStrategy::MEDIAN);
     
     pool = new thread_pool(1);
     cudaStreamCreate(&stream);

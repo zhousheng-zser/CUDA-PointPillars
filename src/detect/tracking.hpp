@@ -19,7 +19,8 @@ enum class DimensionStrategy {
     AVERAGE = 2,                // 取平均值
     TRIMMED_AVERAGE = 3,        // 去除最大的20%和最小的20%后，再求平均值
     TRIMMED_MAX = 4,            // 去除最大的前5%后，再取最大值
-    FIRST_10_PERCENT_AVG = 5    // 最大的前10%的平均值
+    FIRST_10_PERCENT_AVG = 5,   // 最大的前10%的平均值
+    MEDIAN = 6                  // 取最大20%的中位数
 };
 
 // Line structure for 3D line segment
