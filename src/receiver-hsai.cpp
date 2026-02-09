@@ -14,6 +14,14 @@
 #include <algorithm>
 #include <limits>
 #include <functional>
+#include <sys/statvfs.h>
+#include <dirent.h>
+#include <cstring>
+#include <ctime>
+#include <sstream>
+#include <iomanip>
+#include <vector>
+#include <map>
 
 #include <nlohmann/json.hpp>
 #include "common/check.hpp"
@@ -404,6 +412,177 @@ void point_cloud_detect() {
     }
 }
 
+// 磁盘监控和清理函数
+void disk_space_monitor_thread() {
+    while (running) {
+        try {
+            const auto& config = get_config();
+            std::string points_file_path = config.points_file_path;
+            
+            // 获取磁盘空间信息
+            struct statvfs stat;
+            if (statvfs(points_file_path.c_str(), &stat) == 0) {
+                // 计算剩余空间百分比
+                unsigned long long total_space = stat.f_blocks * stat.f_frsize;
+                unsigned long long free_space = stat.f_bavail * stat.f_frsize;
+                double free_percentage = (double)free_space / (double)total_space * 100.0;
+                
+                std::cout << "[DISK] Free space: " << std::fixed << std::setprecision(2) 
+                          << free_percentage << "% (" << free_space / (1024ULL * 1024ULL * 1024ULL) 
+                          << " GB / " << total_space / (1024ULL * 1024ULL * 1024ULL) << " GB)" << std::endl;
+                
+                // 如果剩余空间不足15%，开始清理
+                if (free_percentage < 15.0) {
+                    std::cout << "[DISK] Warning: Free space below 15%, starting cleanup..." << std::endl;
+                    
+                    // 获取所有 yyyyMMdd/HH/mm 格式的三级目录
+                    std::vector<std::pair<std::string, std::time_t>> time_dirs;  // <路径, 时间戳>
+                    
+                    DIR* dir = opendir(points_file_path.c_str());
+                    if (dir != nullptr) {
+                        struct dirent* entry;
+                        while ((entry = readdir(dir)) != nullptr) {
+                            std::string date_dir_name = entry->d_name;
+                            // 跳过 . 和 ..
+                            if (date_dir_name == "." || date_dir_name == "..") {
+                                continue;
+                            }
+                            
+                            // 检查是否是YYYYMMDD格式的目录（8位数字）
+                            if (date_dir_name.length() == 8) {
+                                bool is_date_dir = true;
+                                for (char c : date_dir_name) {
+                                    if (!std::isdigit(c)) {
+                                        is_date_dir = false;
+                                        break;
+                                    }
+                                }
+                                if (is_date_dir) {
+                                    // 解析日期
+                                    int year = std::stoi(date_dir_name.substr(0, 4));
+                                    int month = std::stoi(date_dir_name.substr(4, 2));
+                                    int day = std::stoi(date_dir_name.substr(6, 2));
+                                    
+                                    // 遍历该日期目录下的所有HH目录
+                                    std::string date_path = points_file_path;
+                                    if (points_file_path.back() != '/') {
+                                        date_path += "/";
+                                    }
+                                    date_path += date_dir_name;
+                                    
+                                    DIR* date_dir = opendir(date_path.c_str());
+                                    if (date_dir != nullptr) {
+                                        struct dirent* hour_entry;
+                                        while ((hour_entry = readdir(date_dir)) != nullptr) {
+                                            std::string hour_dir_name = hour_entry->d_name;
+                                            if (hour_dir_name == "." || hour_dir_name == "..") {
+                                                continue;
+                                            }
+                                            
+                                            // 检查是否是HH格式的目录（2位数字，00-23）
+                                            if (hour_dir_name.length() == 2 && std::isdigit(hour_dir_name[0]) && std::isdigit(hour_dir_name[1])) {
+                                                int hour = std::stoi(hour_dir_name);
+                                                
+                                                // 遍历该小时目录下的所有mm目录
+                                                std::string hour_path = date_path + "/" + hour_dir_name;
+                                                
+                                                DIR* hour_dir = opendir(hour_path.c_str());
+                                                if (hour_dir != nullptr) {
+                                                    struct dirent* min_entry;
+                                                    while ((min_entry = readdir(hour_dir)) != nullptr) {
+                                                        std::string min_dir_name = min_entry->d_name;
+                                                        if (min_dir_name == "." || min_dir_name == "..") {
+                                                            continue;
+                                                        }
+                                                        
+                                                        // 检查是否是mm格式的目录（2位数字，00-59）
+                                                        if (min_dir_name.length() == 2 && std::isdigit(min_dir_name[0]) && std::isdigit(min_dir_name[1])) {
+                                                            int minute = std::stoi(min_dir_name);
+                                                            
+                                                            // 构建完整路径
+                                                            std::string full_path = hour_path + "/" + min_dir_name;
+                                                            
+                                                            // 构建时间戳用于排序
+                                                            std::tm time_tm = {};
+                                                            time_tm.tm_year = year - 1900;
+                                                            time_tm.tm_mon = month - 1;
+                                                            time_tm.tm_mday = day;
+                                                            time_tm.tm_hour = hour;
+                                                            time_tm.tm_min = minute;
+                                                            time_tm.tm_sec = 0;
+                                                            std::time_t dir_time = std::mktime(&time_tm);
+                                                            
+                                                            time_dirs.push_back({full_path, dir_time});
+                                                        }
+                                                    }
+                                                    closedir(hour_dir);
+                                                }
+                                            }
+                                        }
+                                        closedir(date_dir);
+                                    }
+                                }
+                            }
+                        }
+                        closedir(dir);
+                        
+                        // 按照时间戳排序（时间最靠前的在前面）
+                        std::sort(time_dirs.begin(), time_dirs.end(), 
+                                  [](const std::pair<std::string, std::time_t>& a, 
+                                     const std::pair<std::string, std::time_t>& b) {
+                                      return a.second < b.second;
+                                  });
+                        
+                        // 从时间最靠前的目录开始删除
+                        bool space_freed = false;
+                        for (const auto& time_dir : time_dirs) {
+                            // 删除整个时间目录（yyyyMMdd/HH/mm）
+                            std::string cmd = "rm -rf \"" + time_dir.first + "\"";
+                            int ret = system(cmd.c_str());
+                            if (ret == 0) {
+                                std::cout << "[DISK] Deleted directory: " << time_dir.first << std::endl;
+                                space_freed = true;
+                                
+                                // 再次检查磁盘空间
+                                struct statvfs stat_after;
+                                if (statvfs(points_file_path.c_str(), &stat_after) == 0) {
+                                    total_space = stat_after.f_blocks * stat_after.f_frsize;
+                                    free_space = stat_after.f_bavail * stat_after.f_frsize;
+                                    free_percentage = (double)free_space / (double)total_space * 100.0;
+                                    stat = stat_after;  // 更新 stat 以供后续使用
+                                    
+                                    // 如果空间已足够，停止删除
+                                    if (free_percentage >= 15.0) {
+                                        std::cout << "[DISK] Free space restored to " 
+                                                  << std::fixed << std::setprecision(2) 
+                                                  << free_percentage << "%" << std::endl;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // 如果所有文件夹都删了还是不够，输出报警
+                        if (!space_freed || free_percentage < 15.0) {
+                            std::cerr << "[DISK] ALERT: All folders deleted but free space still below 15%! " 
+                                      << "Current free space: " << std::fixed << std::setprecision(2) 
+                                      << free_percentage << "%" << std::endl;
+                        }
+                    } else {
+                        std::cerr << "[DISK] Error: Cannot open directory " << points_file_path << std::endl;
+                    }
+                }
+            } else {
+                std::cerr << "[DISK] Error: Cannot get disk space info for " << points_file_path << std::endl;
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "[DISK] Error in disk space monitor: " << e.what() << std::endl;
+        }
+        
+        // 每小时检测一次
+        std::this_thread::sleep_for(std::chrono::hours(1));
+    }
+}
 
 int main(int argc, char** argv) {
     // Set config file path before initializing config
@@ -430,6 +609,9 @@ int main(int argc, char** argv) {
     // HTTP服务器线程 接收AII请求并进行检测
     std::thread server_thread(http_server::start_pointcloud_server, "0.0.0.0", 8100, handle_detection_request, &running);
     
+    // 磁盘监控线程
+    std::thread disk_monitor_thread(disk_space_monitor_thread);
+    
     // Keep main thread alive
     try {
         while (running) {
@@ -443,6 +625,7 @@ int main(int argc, char** argv) {
     get_lidar_thread.join();
     detect_thread.join();
     server_thread.join();
+    disk_monitor_thread.join();
     
     // Stop lidar before exit
     HesaiSDK::UninitHesaiSDK();

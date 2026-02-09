@@ -223,6 +223,14 @@ void RangeConfigSingleton::initializeConfig(RangeConfig& config, const std::stri
                     config.dbscan_max_cluster_ratio = 0.05f;
                     config.dbscan_z_threshold = 0.19f;
                 }
+
+                // Data points configuration
+                if (j.contains("data_points_type")) config.data_points_type = j["data_points_type"].get<int>();
+                if (j.contains("points_file_path")) config.points_file_path = j["points_file_path"].get<std::string>();
+                
+                // Snowflake algorithm configuration
+                if (j.contains("snowflake_datacenter_id")) config.snowflake_datacenter_id = j["snowflake_datacenter_id"].get<int>();
+                if (j.contains("snowflake_worker_id")) config.snowflake_worker_id = j["snowflake_worker_id"].get<int>();
                 
                 std::cout << "Configuration loaded from: " << json_file_path << std::endl;
             } else {
@@ -276,6 +284,10 @@ void RangeConfigSingleton::initializeConfig(RangeConfig& config, const std::stri
         config.dbscan_eps_z = 0.2f;
         config.dbscan_max_cluster_ratio = 0.1f;
         config.dbscan_z_threshold = 0.2f;
+        config.data_points_type = 0;
+        config.points_file_path = "/mnt/data/sda/ocm_3/";
+        config.snowflake_datacenter_id = 1;
+        config.snowflake_worker_id = 1;
     }
     
     // 设置基本配置（从 JSON 或默认值）

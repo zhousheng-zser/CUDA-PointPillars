@@ -1,5 +1,6 @@
 #include "http_server.hpp"
 #include "config.hpp"
+#include "snowflake.hpp"
 #include <hv/HttpServer.h>
 #include <hv/HttpService.h>
 #include <hv/HttpClient.h>
@@ -20,11 +21,34 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <regex>
+#include <memory>
+#include <atomic>
+#include <cstring>
+#include <cerrno>
 
 using json = nlohmann::json;
 using namespace hv;
 
 namespace http_server {
+
+// 全局雪花算法实例（延迟初始化）
+static std::unique_ptr<snowflake::Snowflake> g_snowflake = nullptr;
+static std::once_flag g_snowflake_init_flag;
+
+// 初始化雪花算法实例
+static void init_snowflake() {
+    const auto& config = get_config();
+    g_snowflake = std::make_unique<snowflake::Snowflake>(
+        config.snowflake_datacenter_id,
+        config.snowflake_worker_id
+    );
+}
+
+// 获取雪花算法实例
+static snowflake::Snowflake& get_snowflake() {
+    std::call_once(g_snowflake_init_flag, init_snowflake);
+    return *g_snowflake;
+}
 
 // 全局日志文件流和互斥锁
 static std::ofstream g_log_file;
@@ -331,12 +355,186 @@ void start_pointcloud_server(const std::string& host, int port, DetectorFunc det
     std::cout << "HTTP Server stopped." << std::endl;
 }
 
+// 辅助函数：从 unique_id（纳秒时间戳）或雪花算法ID构建文件路径
+static std::string build_file_path_from_unique_id(const std::string& unique_id, const std::string& base_path, bool is_car_file, bool use_snowflake = false) {
+    try {
+        std::string file_id;
+        std::time_t time_t;
+        
+        if (use_snowflake) {
+            // 使用雪花算法生成ID
+            int64_t snowflake_id = get_snowflake().nextId();
+            file_id = std::to_string(snowflake_id);
+            
+            // 从雪花算法ID中提取时间戳（雪花算法ID包含时间戳信息）
+            // 雪花算法ID格式：时间戳(41位) + 数据中心ID(5位) + 机器ID(5位) + 序列号(12位)
+            // 时间戳在最高位，需要右移22位（5+5+12）
+            // 雪花算法的epoch是1577836800000LL (2020-01-01 00:00:00 UTC)
+            int64_t timestamp_ms = (snowflake_id >> 22) + 1577836800000LL; // 加上epoch
+            time_t = static_cast<std::time_t>(timestamp_ms / 1000);
+        } else {
+            // 使用unique_id（纳秒时间戳）
+            file_id = unique_id;
+            uint64_t timestamp_ns = std::stoull(unique_id);
+            uint64_t timestamp_s = timestamp_ns / 1000000000ULL;  // 转换为秒
+            time_t = static_cast<std::time_t>(timestamp_s);
+        }
+        
+        // 转换为时间结构
+        std::tm* timeinfo = std::localtime(&time_t);
+        
+        // 构建目录路径：YYYYMMDD/HH/MM
+        std::ostringstream dir_path;
+        dir_path << base_path;
+        if (base_path.back() != '/') {
+            dir_path << "/";
+        }
+        dir_path << std::setfill('0') << std::setw(4) << (1900 + timeinfo->tm_year)
+                 << std::setfill('0') << std::setw(2) << (timeinfo->tm_mon + 1)
+                 << std::setfill('0') << std::setw(2) << timeinfo->tm_mday << "/"
+                 << std::setfill('0') << std::setw(2) << timeinfo->tm_hour << "/"
+                 << std::setfill('0') << std::setw(2) << timeinfo->tm_min << "/";
+        
+        // 构建文件路径
+        std::ostringstream file_path;
+        file_path << dir_path.str() << file_id;
+        if (is_car_file) {
+            file_path << "_car.json";
+        } else {
+            file_path << ".json";
+        }
+        
+        return file_path.str();
+    } catch (const std::exception& e) {
+        // 如果转换失败，返回空字符串
+        std::cerr << "[ERROR] build_file_path_from_unique_id failed: " << e.what() << std::endl;
+        return "";
+    }
+}
+
+// 辅助函数：创建目录（如果不存在），支持多级目录
+static bool create_directory_if_not_exists(const std::string& file_path) {
+    try {
+        // 提取目录路径（去掉文件名）
+        size_t last_slash = file_path.find_last_of('/');
+        if (last_slash == std::string::npos) {
+            return true; // 没有目录部分，直接返回
+        }
+        
+        std::string dir = file_path.substr(0, last_slash);
+        
+        // 如果目录已存在，直接返回
+        struct stat info;
+        if (stat(dir.c_str(), &info) == 0 && S_ISDIR(info.st_mode)) {
+            return true;
+        }
+        
+        // 递归创建目录
+        // 从根目录开始逐级创建
+        std::string current_path;
+        size_t pos = 0;
+        
+        // 处理绝对路径（以/开头）
+        if (dir[0] == '/') {
+            current_path = "/";
+            pos = 1;
+        }
+        
+        while (pos < dir.length()) {
+            size_t next_slash = dir.find('/', pos);
+            if (next_slash == std::string::npos) {
+                current_path += dir.substr(pos);
+            } else {
+                current_path += dir.substr(pos, next_slash - pos + 1);
+            }
+            
+            // 检查当前路径是否存在
+            if (stat(current_path.c_str(), &info) != 0 || !S_ISDIR(info.st_mode)) {
+                // 目录不存在，创建它
+                if (mkdir(current_path.c_str(), 0755) != 0) {
+                    // 如果创建失败且不是已存在的错误，返回false
+                    if (errno != EEXIST) {
+                        std::cerr << "[ERROR] Failed to create directory: " << current_path 
+                                  << ", error: " << strerror(errno) << std::endl;
+                        return false;
+                    }
+                }
+            }
+            
+            if (next_slash == std::string::npos) {
+                break;
+            }
+            pos = next_slash + 1;
+        }
+        
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "[ERROR] Failed to create directory: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+// 辅助函数：保存点云数据到JSON文件，保留3位小数
+static bool save_point_cloud_to_file(const std::string& file_path, 
+                                     const std::vector<std::array<float, 4>>& points) {
+    try {
+        // 创建目录（如果不存在）
+        if (!create_directory_if_not_exists(file_path)) {
+            std::cerr << "[ERROR] Failed to create directory for: " << file_path << std::endl;
+            return false;
+        }
+        
+        // 创建JSON数组
+        nlohmann::json json_array = nlohmann::json::array();
+        
+        // 设置精度为3位小数
+        for (const auto& p : points) {
+            // 保留3位小数：先乘以1000，四舍五入，再除以1000
+            float x = std::round(p[0] * 1000.0f) / 1000.0f;
+            float y = std::round(p[1] * 1000.0f) / 1000.0f;
+            float z = std::round(p[2] * 1000.0f) / 1000.0f;
+            float intensity = std::round(p[3] * 1000.0f) / 1000.0f;
+            
+            json_array.push_back({x, y, z, intensity});
+        }
+        
+        // 写入文件
+        std::ofstream ofs(file_path);
+        if (!ofs.is_open()) {
+            std::cerr << "[ERROR] Failed to open file for writing: " << file_path << std::endl;
+            return false;
+        }
+        
+        // 设置输出流精度为3位小数
+        ofs << std::fixed << std::setprecision(3);
+        
+        // 使用缩进格式保存JSON（更易读）
+        // 注意：nlohmann::json的dump()会使用默认精度，我们需要手动格式化
+        std::string json_str = json_array.dump(4);
+        
+        // 替换JSON中的浮点数，确保保留3位小数
+        // 由于nlohmann::json在序列化时可能不会保留尾随零，我们需要手动处理
+        // 但为了简单，我们直接使用dump()，因为已经通过round保留了3位小数精度
+        ofs << json_str << std::endl;
+        ofs.close();
+        
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "[ERROR] Failed to save point cloud to file: " << e.what() << std::endl;
+        return false;
+    }
+}
+
 void async_forward_to_other_service(const std::string& unique_id,
                                    const tracking::MultiObjectTracker::BestResult& best,
                                    std::vector<std::array<float, 4>> &point_cloud,
                                    std::vector<std::array<float, 4>> &points_max_car,
                                    int road_id, const std::string &lidar_tpye) {
     std::thread([unique_id, best, point_cloud = std::move(point_cloud), points_max_car = std::move(points_max_car), road_id, lidar_tpye]() mutable {
+        const auto& config = get_config();
+        int data_points_type = config.data_points_type;
+        std::string points_file_path = config.points_file_path;
+        
         nlohmann::json payload;
         double factor = 1000;
         payload["vehicle_width"] = std::round(best.width * factor);
@@ -350,27 +548,50 @@ void async_forward_to_other_service(const std::string& unique_id,
         payload["vehicle_serial_number"] = unique_id;
         payload["vehicle_lidar_type"] = lidar_tpye;
         payload["vehicle_detect_time"] = "";
+        payload["data_points_type"] = data_points_type;
+        
         //write_log(payload.dump());
-        // 全图点云
-        payload["vehicle_radar_points"] = nlohmann::json::array();
-        for (const auto &p : point_cloud) {
-            payload["vehicle_radar_points"].push_back(
-                {std::round(p[0] * factor) / factor, std::round(p[1] * factor) / factor, 
-                std::round(p[2] * factor) / factor, std::round(p[3] * factor) / factor}
-            );
-        }
-        // 最大单车点云
-        payload["vehicle_car_points"] = nlohmann::json::array();
-        for (const auto &p : points_max_car) {
-            payload["vehicle_car_points"].push_back(
-                {std::round(p[0] * factor) / factor, std::round(p[1] * factor) / factor, 
-                std::round(p[2] * factor) / factor, std::round(p[3] * factor) / factor}
-            );
+        // 根据 data_points_type 决定返回点云数据还是路径
+        if (data_points_type == 0) {
+            // data_points_type 为 0：返回路径，点云数据为空数组，并保存点云数据到本地文件
+            // 使用雪花算法生成ID
+            std::string vehicle_car_points_path = build_file_path_from_unique_id(unique_id, points_file_path, true, true);
+            std::string vehicle_radar_points_path = build_file_path_from_unique_id(unique_id, points_file_path, false, true);
+            payload["vehicle_car_points_path"] = vehicle_car_points_path;
+            payload["vehicle_radar_points_path"] = vehicle_radar_points_path;
+            
+            // 保存点云数据到本地文件（保留3位小数）
+            save_point_cloud_to_file(vehicle_car_points_path, points_max_car);
+            save_point_cloud_to_file(vehicle_radar_points_path, point_cloud);
+            
+            // 点云数据返回空数组
+            payload["vehicle_radar_points"] = nlohmann::json::array();
+            payload["vehicle_car_points"] = nlohmann::json::array();
+        } else {
+            // data_points_type 为 1：返回真实点云数据，路径为空
+            payload["vehicle_car_points_path"] = "";
+            payload["vehicle_radar_points_path"] = "";
+            
+            // 全图点云
+            payload["vehicle_radar_points"] = nlohmann::json::array();
+            for (const auto &p : point_cloud) {
+                payload["vehicle_radar_points"].push_back(
+                    {std::round(p[0] * factor) / factor, std::round(p[1] * factor) / factor, 
+                    std::round(p[2] * factor) / factor, std::round(p[3] * factor) / factor}
+                );
+            }
+            // 最大单车点云
+            payload["vehicle_car_points"] = nlohmann::json::array();
+            for (const auto &p : points_max_car) {
+                payload["vehicle_car_points"].push_back(
+                    {std::round(p[0] * factor) / factor, std::round(p[1] * factor) / factor, 
+                    std::round(p[2] * factor) / factor, std::round(p[3] * factor) / factor}
+                );
+            }
         }
 
         std::string body = payload.dump();
 
-        const auto& config = get_config();
         const std::string& web_ip = config.web_service_ip;
         const int web_port = config.web_service_port;
         const int timeout_sec = config.web_service_timeout_sec;

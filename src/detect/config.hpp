@@ -65,6 +65,14 @@ struct RangeConfig {
     float dbscan_eps_z = 0.2f;           // DBSCAN Z方向邻域半径（米）- z方向要求更严格
     float dbscan_max_cluster_ratio = 0.05f; // 最大簇比例阈值：点数小于最大簇*此比例的簇可能被删除
     float dbscan_z_threshold = 0.19f;       // Z值阈值（米）：如果簇的平均z值 > 主簇平均z值 + 此阈值，则删除（用于过滤树叶等高空噪声）
+
+    // Data points configuration
+    int data_points_type = 0;            // 数据类型：0表示不返回点云数据，只返回路径
+    std::string points_file_path = "/mnt/data/sda/ocm_3/";  // 点云数据文件保存路径
+    
+    // Snowflake algorithm configuration
+    int snowflake_datacenter_id = 1;    // 雪花算法数据中心ID，范围0-31
+    int snowflake_worker_id = 1;        // 雪花算法机器ID，范围0-31
 };
 
 //---------------------------
