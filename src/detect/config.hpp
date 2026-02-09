@@ -56,6 +56,8 @@ struct RangeConfig {
 
     LineConfig line1_config;
     LineConfig line2_config;
+    float speed_calib = 0.0f;  // 车速校准值（单位：km/h），最终速度会加上这个值
+    LineConfig speed_line_config;  // Speed line for speed calculation
 
     // DBSCAN clustering configuration
     bool use_dbscan = true;              // 是否启用 DBSCAN 聚类

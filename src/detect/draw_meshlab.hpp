@@ -230,7 +230,8 @@ inline bool SaveBoxesAsPCD(const std::vector<detect::ProcessingBox> &boxes,
                     int num_points,
                     const std::string &file_name,
                     float edge_step,
-                    std::vector<std::array<float, 4>> &out_points) {
+                    std::vector<std::array<float, 4>> &out_points,
+                    bool draw_speed_line = false) {
     out_points.clear();
     const size_t approx_line_points = static_cast<size_t>(boxes.size()) * 12 * 20;
     out_points.reserve(static_cast<size_t>(num_points) + approx_line_points);
@@ -293,6 +294,21 @@ inline bool SaveBoxesAsPCD(const std::vector<detect::ProcessingBox> &boxes,
     // Add line2 points with intensity -2
     for (const auto &p : line2_points) {
         out_points.push_back({p.x, p.y, p.z, -2.0f});
+    }
+    
+    // Add speed_line segment with intensity -2 (only if draw_speed_line is true)
+    if (draw_speed_line) {
+        const auto& speed_line_config = get_config().speed_line_config;
+        nvtype::Float3 speed_line_start(speed_line_config.start_x, speed_line_config.start_y, speed_line_config.start_z);
+        nvtype::Float3 speed_line_end(speed_line_config.end_x, speed_line_config.end_y, speed_line_config.end_z);
+        
+        std::vector<nvtype::Float4> speed_line_points;
+        interpolateEdge(speed_line_start, speed_line_end, edge_step, speed_line_points);
+        
+        // Add speed_line points with intensity -2
+        for (const auto &p : speed_line_points) {
+            out_points.push_back({p.x, p.y, p.z, -2.0f});
+        }
     }
     
     if (!file_name.empty()) {

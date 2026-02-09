@@ -182,6 +182,31 @@ void RangeConfigSingleton::initializeConfig(RangeConfig& config, const std::stri
                     config.line2_config.end_y = -14.0f;
                     config.line2_config.end_z = -3.5f;
                 }
+                
+                // 读取 speed_calib 配置（单位：km/h）
+                if (j.contains("speed_calib")) {
+                    config.speed_calib = j["speed_calib"].get<float>();
+                } else {
+                    config.speed_calib = 0.0f;
+                }
+                
+                // 读取 speed_line 配置
+                if (j.contains("speed_line")) {
+                    auto& speed_line = j["speed_line"];
+                    if (speed_line.contains("start_x")) config.speed_line_config.start_x = speed_line["start_x"];
+                    if (speed_line.contains("start_y")) config.speed_line_config.start_y = speed_line["start_y"];
+                    if (speed_line.contains("start_z")) config.speed_line_config.start_z = speed_line["start_z"];
+                    if (speed_line.contains("end_x")) config.speed_line_config.end_x = speed_line["end_x"];
+                    if (speed_line.contains("end_y")) config.speed_line_config.end_y = speed_line["end_y"];
+                    if (speed_line.contains("end_z")) config.speed_line_config.end_z = speed_line["end_z"];
+                } else {
+                    config.speed_line_config.start_x = 45.0f;
+                    config.speed_line_config.start_y = -5.0f;
+                    config.speed_line_config.start_z = -3.0f;
+                    config.speed_line_config.end_x = 0.0f;
+                    config.speed_line_config.end_y = -5.0f;
+                    config.speed_line_config.end_z = -3.0f;
+                }
 
                 // DBSCAN configuration
                 if (j.contains("dbscan") && j["dbscan"].is_object()) {
@@ -239,6 +264,13 @@ void RangeConfigSingleton::initializeConfig(RangeConfig& config, const std::stri
         config.line2_config.end_x = 0.0f;
         config.line2_config.end_y = -14.0f;
         config.line2_config.end_z = -3.5f;
+        config.speed_calib = 0.0f;  // 默认校准值为 0 km/h
+        config.speed_line_config.start_x = 45.0f;
+        config.speed_line_config.start_y = -5.0f;
+        config.speed_line_config.start_z = -3.0f;
+        config.speed_line_config.end_x = 0.0f;
+        config.speed_line_config.end_y = -5.0f;
+        config.speed_line_config.end_z = -3.0f;
         config.use_dbscan = true;
         config.dbscan_eps_xy = 1.5f;
         config.dbscan_eps_z = 0.2f;

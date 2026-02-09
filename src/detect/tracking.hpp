@@ -23,6 +23,12 @@ enum class DimensionStrategy {
     MEDIAN = 6                  // 取最大20%的中位数
 };
 
+// Strategy enum for getting speed from observations
+enum class SpeedStrategy {
+    FIRST_80_PERCENT_AVG = 1,           // 前80%的平均值（过滤超过200km/h的值）
+    CLOSEST_3_TO_SPEED_LINE = 2         // 距离speed_line最近的前3个点的速度的最大值（过滤超过200km/h的值）
+};
+
 // Line structure for 3D line segment
 struct Line {
     float start_x, start_y, start_z;
@@ -90,7 +96,7 @@ public:
     void update(const BBox3D& bbox3d, uint64_t timestamp, std::vector<std::array<float, 4>> &points_max_car );
     BBox3D get_state() const;
     BBox3D get_last_observation() const;
-    float get_speed() const;
+    float get_speed(SpeedStrategy strategy) const;
     float get_length(DimensionStrategy strategy) const;
     float get_width(DimensionStrategy strategy) const;
     float get_height(DimensionStrategy strategy) const;
@@ -106,7 +112,8 @@ private:
     int id_;
     int time_since_update_;
     int hits_;
-    std::vector<float> speed_;
+    std::vector<float> speed_;  // Speed values
+    std::vector<std::array<float, 3>> speed_positions_;  // Position (dx, dy, dz) for each speed measurement
     float score_;
     uint64_t last_timestamp_;
     
@@ -114,13 +121,17 @@ private:
     
     // Helper function to get dimension value based on strategy
     float get_dimension_value(const std::vector<float>& values, DimensionStrategy strategy) const;
+    
+    // Helper function to get speed value based on strategy
+    float get_speed_value(const std::vector<float>& speeds, SpeedStrategy strategy) const;
 };
 
 // Multi-Object Tracker
 class MultiObjectTracker {
 public:
     MultiObjectTracker(float iou_threshold = 0.7f, int max_age = 5,
-                      DimensionStrategy dimension_strategy = DimensionStrategy::TRIMMED_MAX);
+                      DimensionStrategy dimension_strategy = DimensionStrategy::TRIMMED_MAX,
+                      SpeedStrategy speed_strategy = SpeedStrategy::CLOSEST_3_TO_SPEED_LINE);
     
     void update(std::vector<BBox3D>& detections, std::vector<std::vector<std::array<float, 4>>> &car_points_frame, uint64_t timestamp ,std::vector<float> &points);
     
@@ -159,6 +170,7 @@ private:
     float iou_threshold_;
     int max_age_;
     DimensionStrategy dimension_strategy_;  // Strategy for getting dimensions
+    SpeedStrategy speed_strategy_;          // Strategy for getting speed
     mutable std::mutex trackers_mutex_;  // Mutex to protect trackers_ and trackers_id_
     
     float euclidean_distance(const BBox3D& b1, const BBox3D& b2) const;

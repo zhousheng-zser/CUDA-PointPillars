@@ -38,6 +38,15 @@
       "c":  0.999756,
       "d":  3.354559
   },
+  "speed_calib": 0,
+  "speed_line": {
+    "start_x": 45.0,
+    "start_y": -5.0,
+    "start_z": -3.0,
+    "end_x": 0.0,
+    "end_y": -5.0,
+    "end_z": -3.0
+  },
   "line1": {
     "start_x": 45.0,
     "start_y": -6.0,

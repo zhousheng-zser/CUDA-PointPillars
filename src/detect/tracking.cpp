@@ -256,6 +256,8 @@ void Tracker::update(const BBox3D& bbox3d, uint64_t timestamp, std::vector<std::
         float dz = bbox3d.z() - previous_observation.z();
         float dist = std::sqrt(dx * dx + dy * dy + dz * dz);
         speed_.push_back(dist / dt);
+        // Store position for speed calculation (use current observation position)
+        speed_positions_.push_back({bbox3d.x(), bbox3d.y(), bbox3d.z()});
     }
     
     last_timestamp_ = timestamp;
@@ -283,36 +285,11 @@ BBox3D Tracker::get_last_observation() const {
     return observations_.back();
 }
 
-float Tracker::get_speed() const {
-    if (speed_.empty()) {
-        return 0.0f;
-    }
-    
-    // If speed_ is long enough, use only the first 80% of values
-    size_t count = speed_.size();
-    size_t use_count = count;
-    
-    if (count >= 5) {  // 只用前80%求车速  数量太少就算了
-        use_count = static_cast<size_t>(count * 0.8f);
-    }
-    
-    // Calculate average speed from the first use_count values
-    // Filter out speeds greater than 200km/h
-    const float max_speed = 200.0f / 3.6f;
-    float sum = 0.0f;
-    size_t valid_count = 0;
-    for (size_t i = 0; i < use_count; ++i) {
-        if (speed_[i] <= max_speed) {
-            sum += speed_[i];
-            valid_count++;
-        }
-    }
-    
-    if (valid_count == 0) {
-        return 0.0f;
-    }
-    
-    return sum / static_cast<float>(valid_count);
+float Tracker::get_speed(SpeedStrategy strategy) const {
+    float speed_mps = get_speed_value(speed_, strategy);  // 速度单位：m/s
+    // 应用车速校准值（单位：km/h），转换为 m/s 后加上
+    float calibration_mps = get_config().speed_calib / 3.6f;  // km/h 转 m/s
+    return speed_mps + calibration_mps;
 }
 
 float Tracker::get_length(DimensionStrategy strategy) const {
@@ -485,12 +462,122 @@ float Tracker::get_dimension_value(const std::vector<float>& values, DimensionSt
     }
 }
 
+// Forward declaration for point_to_line_distance (used in get_speed_value)
+static float point_to_line_distance(float px, float py, float pz,
+                                    float lx1, float ly1, float lz1,
+                                    float lx2, float ly2, float lz2);
+
+float Tracker::get_speed_value(const std::vector<float>& speeds, SpeedStrategy strategy) const {
+    if (speeds.empty()) {
+        return 0.0f;
+    }
+    
+    switch (strategy) {
+        case SpeedStrategy::FIRST_80_PERCENT_AVG: {
+            // 1. 前80%的平均值（过滤超过200km/h的值）
+            size_t count = speeds.size();
+            size_t use_count = count;
+            
+            if (count >= 5) {  // 只用前80%求车速  数量太少就算了
+                use_count = static_cast<size_t>(count * 0.8f);
+            }
+            
+            // Calculate average speed from the first use_count values
+            // Filter out speeds greater than 200km/h
+            const float max_speed = 200.0f / 3.6f;
+            float sum = 0.0f;
+            size_t valid_count = 0;
+            for (size_t i = 0; i < use_count; ++i) {
+                if (speeds[i] <= max_speed) {
+                    sum += speeds[i];
+                    valid_count++;
+                }
+            }
+            
+            if (valid_count == 0) {
+                return 0.0f;
+            }
+            
+            return sum / static_cast<float>(valid_count);
+        }
+        
+        case SpeedStrategy::CLOSEST_3_TO_SPEED_LINE: {
+            // 2. 距离speed_line最近的前3个点的速度的最大值（过滤超过200km/h的值）
+            if (speed_positions_.empty() || speeds.size() != speed_positions_.size()) {
+                // 如果没有位置信息，回退到前80%平均值策略
+                return get_speed_value(speeds, SpeedStrategy::FIRST_80_PERCENT_AVG);
+            }
+            
+            // Get speed_line configuration
+            const auto& speed_line_config = get_config().speed_line_config;
+            float line_start_x = speed_line_config.start_x;
+            float line_start_y = speed_line_config.start_y;
+            float line_start_z = speed_line_config.start_z;
+            float line_end_x = speed_line_config.end_x;
+            float line_end_y = speed_line_config.end_y;
+            float line_end_z = speed_line_config.end_z;
+            
+            // Calculate distance from each point to speed_line
+            struct SpeedWithDistance {
+                float speed;
+                float distance;
+            };
+            
+            std::vector<SpeedWithDistance> speed_distances;
+            speed_distances.reserve(speeds.size());
+            
+            const float max_speed = 200.0f / 3.6f;
+            for (size_t i = 0; i < speeds.size(); ++i) {
+                // Filter out speeds greater than 200km/h
+                if (speeds[i] > max_speed) {
+                    continue;
+                }
+                
+                // Calculate distance from point to speed_line
+                float distance = point_to_line_distance(
+                    speed_positions_[i][0], speed_positions_[i][1], speed_positions_[i][2],
+                    line_start_x, line_start_y, line_start_z,
+                    line_end_x, line_end_y, line_end_z
+                );
+                
+                speed_distances.push_back({speeds[i], distance});
+            }
+            
+            if (speed_distances.empty()) {
+                return 0.0f;
+            }
+            
+            // Sort by distance (ascending)
+            std::sort(speed_distances.begin(), speed_distances.end(),
+                     [](const SpeedWithDistance& a, const SpeedWithDistance& b) {
+                         return a.distance < b.distance;
+                     });
+            
+            // Take the closest 3 points (or all if less than 3) and find the maximum speed
+            size_t count = std::min(static_cast<size_t>(3), speed_distances.size());
+            float max_speed_value = speed_distances[0].speed;
+            for (size_t i = 1; i < count; ++i) {
+                if (speed_distances[i].speed > max_speed_value) {
+                    max_speed_value = speed_distances[i].speed;
+                }
+            }
+            
+            return max_speed_value;
+        }
+        
+        default:
+            // 默认使用前80%平均值策略
+            return get_speed_value(speeds, SpeedStrategy::FIRST_80_PERCENT_AVG);
+    }
+}
+
 // ==================== MultiObjectTracker Implementation ====================
 
 MultiObjectTracker::MultiObjectTracker(float iou_threshold, int max_age,
-                                       DimensionStrategy dimension_strategy)
+                                       DimensionStrategy dimension_strategy,
+                                       SpeedStrategy speed_strategy)
     : next_id_(0), iou_threshold_(iou_threshold), max_age_(max_age),
-      dimension_strategy_(dimension_strategy) {
+      dimension_strategy_(dimension_strategy), speed_strategy_(speed_strategy) {
 }
 
 void MultiObjectTracker::update(std::vector<BBox3D>& detections, 
@@ -616,7 +703,7 @@ void MultiObjectTracker::update(std::vector<BBox3D>& detections,
                 best_result.centre_l = val.x();
                 best_result.centre_w = val.y();
                 best_result.centre_h = val.z();
-                best_result.speed = trk.get_speed();
+                best_result.speed = trk.get_speed(speed_strategy_);
                 best_result.score = trk.get_score();
                 best_result.points_max_car.clear();
                 best_result.points_max_car = std::move(trk.points_max_car_);
@@ -778,7 +865,8 @@ bool MultiObjectTracker::set_unique_id_for_closest_vehicle(const std::string& un
     }
     
     if (best_idx == -1) {
-        detect::SaveBoxesAsPCD(bboxes, points_now.data(), points_now.size()/4, "", get_config().point_cloud_draw_step, rendered_points);
+        bool draw_speed_line = (speed_strategy_ == SpeedStrategy::CLOSEST_3_TO_SPEED_LINE);
+        detect::SaveBoxesAsPCD(bboxes, points_now.data(), points_now.size()/4, "", get_config().point_cloud_draw_step, rendered_points, draw_speed_line);
         return false;
     }
     
@@ -801,7 +889,8 @@ bool MultiObjectTracker::set_unique_id_for_closest_vehicle(const std::string& un
     //     std::swap(bboxes[0], bboxes[1]);  //让ROI 放后面
     // }
     
-    detect::SaveBoxesAsPCD(bboxes, points_now.data(), points_now.size()/4, "", get_config().point_cloud_draw_step, rendered_points);
+    bool draw_speed_line = (speed_strategy_ == SpeedStrategy::CLOSEST_3_TO_SPEED_LINE);
+    detect::SaveBoxesAsPCD(bboxes, points_now.data(), points_now.size()/4, "", get_config().point_cloud_draw_step, rendered_points, draw_speed_line);
 
     BestResult best_result;
     best_result.length = trk.get_length(dimension_strategy_);
@@ -810,7 +899,7 @@ bool MultiObjectTracker::set_unique_id_for_closest_vehicle(const std::string& un
     best_result.centre_l = val.x();
     best_result.centre_w = val.y();
     best_result.centre_h = val.z();
-    best_result.speed = trk.get_speed();
+    best_result.speed = trk.get_speed(speed_strategy_);
     best_result.score = trk.get_score();
     uint64_t timestamp = trk.get_last_timestamp();
     best_result.points_max_car.clear();
