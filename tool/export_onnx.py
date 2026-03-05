@@ -181,7 +181,7 @@ def main():
           dummy_input,               # model input (tuple of tensors)
           os.path.join(args.out_dir, "pointpillar_raw.onnx"),  # where to save the model (can be a file or file-like object)
           export_params=True,        # store the trained parameter weights inside the model file
-          opset_version=11,          # the ONNX version to export the model to
+          opset_version=11,   #17->李玟剑          # the ONNX version to export the model to
           do_constant_folding=True,  # whether to execute constant folding for optimization
           keep_initializers_as_inputs=True,
           input_names = ['voxels', 'voxel_num', 'voxel_idxs'],   # the model's input names

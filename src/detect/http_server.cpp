@@ -484,20 +484,6 @@ static bool save_point_cloud_to_file(const std::string& file_path,
             return false;
         }
         
-        // 创建JSON数组
-        nlohmann::json json_array = nlohmann::json::array();
-        
-        // 设置精度为3位小数
-        for (const auto& p : points) {
-            // 保留3位小数：先乘以1000，四舍五入，再除以1000
-            float x = std::round(p[0] * 1000.0f) / 1000.0f;
-            float y = std::round(p[1] * 1000.0f) / 1000.0f;
-            float z = std::round(p[2] * 1000.0f) / 1000.0f;
-            float intensity = std::round(p[3] * 1000.0f) / 1000.0f;
-            
-            json_array.push_back({x, y, z, intensity});
-        }
-        
         // 写入文件
         std::ofstream ofs(file_path);
         if (!ofs.is_open()) {
@@ -508,14 +494,22 @@ static bool save_point_cloud_to_file(const std::string& file_path,
         // 设置输出流精度为3位小数
         ofs << std::fixed << std::setprecision(3);
         
-        // 使用缩进格式保存JSON（更易读）
-        // 注意：nlohmann::json的dump()会使用默认精度，我们需要手动格式化
-        std::string json_str = json_array.dump(4);
-        
-        // 替换JSON中的浮点数，确保保留3位小数
-        // 由于nlohmann::json在序列化时可能不会保留尾随零，我们需要手动处理
-        // 但为了简单，我们直接使用dump()，因为已经通过round保留了3位小数精度
-        ofs << json_str << std::endl;
+        // 手动构建紧凑格式的JSON数组，确保每个数字都是3位小数
+        ofs << "[";
+        for (size_t i = 0; i < points.size(); ++i) {
+            const auto& p = points[i];
+            // 保留3位小数：先乘以1000，四舍五入，再除以1000
+            float x = std::round(p[0] * 1000.0f) / 1000.0f;
+            float y = std::round(p[1] * 1000.0f) / 1000.0f;
+            float z = std::round(p[2] * 1000.0f) / 1000.0f;
+            float intensity = std::round(p[3] * 1000.0f) / 1000.0f;
+            
+            if (i > 0) {
+                ofs << ",";
+            }
+            ofs << "[" << x << "," << y << "," << z << "," << intensity << "]";
+        }
+        ofs << "]" << std::endl;
         ofs.close();
         
         return true;
